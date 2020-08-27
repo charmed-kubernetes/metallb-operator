@@ -2,9 +2,10 @@ description: A charm bundle to deploy MetalLB in Kubernetes
 bundle: kubernetes
 applications:
   metallb-controller:
-    source: ../charm-metallb-controller
-    charm: cs:~charmed-kubernetes/charm-metallb-controller
+    # source: ../charm-metallb-controller/.build/metallb-controller.charm
+    charm: ../charm-metallb-controller/.build/metallb-controller.charm
+    scale: 1
   metallb-speaker:
-    source: ../charm-metallb-speaker
-    charm: cs:~charmed-kubernetes/charm-metallb-speaker
-#relations
+    # source: ../charm-metallb-speaker/.build/metallb-speaker.charm
+    charm: ../charm-metallb-speaker/.build/metallb-speaker.charm
+    scale: 1
