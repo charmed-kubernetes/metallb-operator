@@ -29,15 +29,7 @@ class MetallbSpeakerCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self.framework.observe(self.on.start, self.on_start)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self.on_remove)
-        self._stored.set_default(things=[])
-
-    def _on_config_changed(self, _):
-        current = self.model.config["thing"]
-        if current not in self._stored.things:
-            logger.debug("found a new thing: %r", current)
-            self._stored.things.append(current)
 
     def on_start(self, event):
         if not self.framework.model.unit.is_leader():

@@ -30,13 +30,12 @@ class MetallbControllerCharm(CharmBase):
         super().__init__(*args)
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self._stored.set_default(things=[])
 
     def _on_config_changed(self, _):
-        current = self.model.config["protocol"]
-        if current not in self._stored.things:
-            logger.debug("found a new thing: %r", current)
-            self._stored.things.append(current)
+        self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
+        logger.info('Reapplying the updated pod spec')
+        self.set_pod_spec()
+        self.framework.model.unit.status = ActiveStatus("Ready")
 
     def on_start(self, event):
         if not self.framework.model.unit.is_leader():
@@ -44,8 +43,41 @@ class MetallbControllerCharm(CharmBase):
 
         logging.info('Setting the pod spec')
         self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
-        iprange = self.model.config["iprange"]
+        self.set_pod_spec()
 
+        response = utils.create_pod_security_policy_with_k8s_api(
+            namespace=self.NAMESPACE,
+        )
+        if not response:
+            self.framework.model.unit.status = BlockedStatus("An error occured during init. Please check the logs.")
+            return
+
+        response = utils.create_namespaced_role_with_api(
+            name='config-watcher',
+            namespace = self.NAMESPACE,
+            labels={'app': 'metallb'},
+            resources=['configmaps'],
+            verbs=['get','list','watch']
+        )
+        if not response:
+            self.framework.model.unit.status = BlockedStatus("An error occured during init. Please check the logs.")
+            return
+       
+        response = utils.bind_role_with_api(
+            name='config-watcher',
+            namespace = self.NAMESPACE,
+            labels={'app': 'metallb'}, 
+            subject_name='controller'
+        )
+        if not response:
+            self.framework.model.unit.status = BlockedStatus("An error occured during init. Please check the logs.")
+            return
+
+        self.framework.model.unit.status = ActiveStatus("Ready")
+
+
+    def set_pod_spec(self):
+        iprange = self.model.config["iprange"]
         self.framework.model.pod.set_spec(
             {
                 'version': 3,
@@ -122,36 +154,6 @@ class MetallbControllerCharm(CharmBase):
                 }
             },
         )
-
-        response = utils.create_pod_security_policy_with_k8s_api(
-            namespace=self.NAMESPACE,
-        )
-        if not response:
-            self.framework.model.unit.status = BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_with_api(
-            name='config-watcher',
-            namespace = self.NAMESPACE,
-            labels={'app': 'metallb'},
-            resources=['configmaps'],
-            verbs=['get','list','watch']
-        )
-        if not response:
-            self.framework.model.unit.status = BlockedStatus("An error occured during init. Please check the logs.")
-            return
-       
-        response = utils.bind_role_with_api(
-            name='config-watcher',
-            namespace = self.NAMESPACE,
-            labels={'app': 'metallb'}, 
-            subject_name='controller'
-        )
-        if not response:
-            self.framework.model.unit.status = BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        self.framework.model.unit.status = ActiveStatus("Ready")
 
 
 if __name__ == "__main__":
