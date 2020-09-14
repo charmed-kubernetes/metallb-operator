@@ -94,7 +94,6 @@ be a reserved pool uniquely for metallb, to avoid ip conflicts.
 To remove the example, simply delete the manifest with kubectl:
     microk8s.kubectl delete -f example-microbot-lb.yaml
 
-
 ## Removing MetalLB
 
 To remove metallb from the cluster, you can remove each application separately:
@@ -106,3 +105,18 @@ or alternatively, you can delete the model itself (be careful, if you deployed
 additional things in this model, then these things would be deleted as well):
 
     juju remove-model metallb-system
+
+## Developing
+
+(Valid while this charm is still under Camille Rodriguez's repo)
+To edit this charm and run it locally to test changes, pull this repo:
+    git clone https://github.com/camille-rodriguez/metallb-bundle.git
+    
+
+To build the charm, simply use make in the base folder:
+    cd metallb-bundle
+    make build
+
+Make sure you have juju bootstrapped to some k8s cluster, and go for it:
+    juju add-model metallb-system
+    juju deploy .
