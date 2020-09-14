@@ -12,7 +12,7 @@ import string
 logger = logging.getLogger(__name__)
 
 
-def create_pod_security_policy_with_k8s_api(namespace):
+def create_pod_security_policy_with_api(namespace):
     # Using the API because of LP:1886694
     logging.info('Creating pod security policy with K8s API')
     _load_kube_config()
@@ -70,15 +70,26 @@ def create_pod_security_policy_with_k8s_api(namespace):
             else:
                 return True
 
+def delete_pod_security_policy_with_api(name):
+    logging.info('Deleting pod security policy named "speaker" with K8s API')
+    _load_kube_config()
+
+    body = client.V1DeleteOptions()
+    with client.ApiClient() as api_client:
+        api_instance = client.PolicyV1beta1Api(api_client)
+        try:
+            api_instance.delete_pod_security_policy(name=name, body=body, pretty=True)
+            return True
+        except ApiException:
+            logging.exception("Exception when calling PolicyV1beta1Api->delete_pod_security_policy.")
+
 
 def create_namespaced_role_with_api(name, namespace, labels, resources, verbs, api_groups=['']):
     # Using API because of bug https://github.com/canonical/operator/issues/390
     logging.info('Creating namespaced role with K8s API')
     _load_kube_config()
 
-    with client.ApiClient() as api_client:
-        api_instance = client.RbacAuthorizationV1Api(api_client)
-        body = client.V1Role(
+    body = client.V1Role(
             metadata = client.V1ObjectMeta(
                 name = name,
                 namespace = namespace,
@@ -90,6 +101,8 @@ def create_namespaced_role_with_api(name, namespace, labels, resources, verbs, a
                 verbs = verbs,
             )]
         )
+    with client.ApiClient() as api_client:
+        api_instance = client.RbacAuthorizationV1Api(api_client)
         try:
             api_instance.create_namespaced_role(namespace, body, pretty=True)
             return True
@@ -101,14 +114,25 @@ def create_namespaced_role_with_api(name, namespace, labels, resources, verbs, a
             else:
                 return True
 
+def delete_namespaced_role_with_api(name, namespace):
+    logging.info('Deleting namespaced role with K8s API')
+    _load_kube_config()
+
+    body = client.V1DeleteOptions()
+    with client.ApiClient() as api_client:
+        api_instance = client.RbacAuthorizationV1Api(api_client)
+        try:
+            api_instance.delete_namespaced_role(name=name, namespace=namespace, body=body, pretty=True)
+            return True
+        except ApiException:
+            logging.exception("Exception when calling RbacAuthorizationV1Api->delete_namespaced_role.")
+
 def bind_role_with_api(name, namespace, labels, subject_name, subject_kind='ServiceAccount'):
     # Using API because of bug https://github.com/canonical/operator/issues/390
     logging.info('Creating role binding with K8s API')
     _load_kube_config()
 
-    with client.ApiClient() as api_client:
-        api_instance = client.RbacAuthorizationV1Api(api_client)
-        body = client.V1RoleBinding(
+    body = client.V1RoleBinding(
             metadata = client.V1ObjectMeta(
                 name = name,
                 namespace = namespace,
@@ -126,6 +150,8 @@ def bind_role_with_api(name, namespace, labels, subject_name, subject_kind='Serv
                 ),
             ]
         )
+    with client.ApiClient() as api_client:
+        api_instance = client.RbacAuthorizationV1Api(api_client)
         try:
             api_instance.create_namespaced_role_binding(namespace, body, pretty=True)
             return True
@@ -136,6 +162,19 @@ def bind_role_with_api(name, namespace, labels, subject_name, subject_kind='Serv
                 return False
             else:
                 return True
+
+def delete_namespaced_role_binding_with_API(name, namespace):
+    logging.info('Deleting namespaced role binding with API')
+    _load_kube_config()
+
+    body = client.V1DeleteOptions()
+    with client.ApiClient() as api_client:
+        api_instance = client.RbacAuthorizationV1Api(api_client)
+        try:
+            api_instance.delete_namespaced_role_binding(name=name, namespace=namespace, body=body, pretty=True)
+            return True
+        except ApiException:
+            logging.exception("Exception when calling RbacAuthorizationV1Api->delete_namespaced_role_binding.")
 
 def _random_secret(length):
     letters = string.ascii_letters

@@ -12,7 +12,7 @@ import string
 logger = logging.getLogger(__name__)
 
 
-def create_pod_security_policy_with_k8s_api(namespace):
+def create_pod_security_policy_with_api(namespace):
     # Using the API because of LP:1886694
     logging.info('Creating pod security policy with K8s API')
     _load_kube_config()
@@ -64,7 +64,7 @@ def create_pod_security_policy_with_k8s_api(namespace):
             else:
                 return True
 
-def delete_pod_security_policy_with_k8s_api():
+def delete_pod_security_policy_with_api(name):
     logging.info('Deleting pod security policy named "controller" with K8s API')
     _load_kube_config()
 
@@ -72,7 +72,7 @@ def delete_pod_security_policy_with_k8s_api():
     with client.ApiClient() as api_client:
         api_instance = client.PolicyV1beta1Api(api_client)
         try:
-            api_instance.delete_pod_security_policy(name='controller', body=body, pretty=True)
+            api_instance.delete_pod_security_policy(name=name, body=body, pretty=True)
             return True
         except ApiException:
             logging.exception("Exception when calling PolicyV1beta1Api->delete_pod_security_policy.")
@@ -119,7 +119,6 @@ def delete_namespaced_role_with_api(name, namespace):
             return True
         except ApiException:
             logging.exception("Exception when calling RbacAuthorizationV1Api->delete_namespaced_role.")
-
 
 def bind_role_with_api(name, namespace, labels, subject_name, subject_kind='ServiceAccount'):
     # Using API because of bug https://github.com/canonical/operator/issues/390

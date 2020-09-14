@@ -147,7 +147,7 @@ class MetallbSpeakerCharm(CharmBase):
             },
         )
 
-        response = utils.create_pod_security_policy_with_k8s_api(
+        response = utils.create_pod_security_policy_with_api(
             namespace=self.NAMESPACE,
         )
         if not response:
@@ -202,6 +202,14 @@ class MetallbSpeakerCharm(CharmBase):
         if not self.framework.model.unit.is_leader():
             return
 
+        self.framework.model.unit.status = MaintenanceStatus("Removing pod")
+        logger.info("Removing artifacts that were created with the k8s API")
+        utils.delete_pod_security_policy_with_api(name='speaker')
+        utils.delete_namespaced_role_binding_with_API(name='config-watcher', namespace=self.NAMESPACE)
+        utils.delete_namespaced_role_with_api(name='config-watcher', namespace=self.NAMESPACE)
+        utils.delete_namespaced_role_binding_with_API(name='pod-lister', namespace=self.NAMESPACE)
+        utils.delete_namespaced_role_with_api(name='pod-lister', namespace=self.NAMESPACE)
+        self.framework.model.unit.status = ActiveStatus("Removing extra config done.")
 
 if __name__ == "__main__":
     main(MetallbSpeakerCharm)
