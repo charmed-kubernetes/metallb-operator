@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment   
+metadata:
+  creationTimestamp: null
+  labels:  
+    app: microbot-lb 
+  name: microbot-lb
+spec:                
+  replicas: 3    
+  selector: 
+    matchLabels:  
+      app: microbot-lb
+  strategy: {}                              
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: microbot-lb
+    spec:
+      containers:
+      - image: dontrebootme/microbot:v1
+        imagePullPolicy: ""
+        name: microbot-lb
+        ports:
+        - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          timeoutSeconds: 30
+        resources: {}
+      restartPolicy: Always
+      serviceAccountName: ""
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: microbot-lb
+  labels:
+    app: microbot-lb
+spec:
+  ports:
+    - port: 8080
+      protocol: TCP
+      targetPort: 80
+  selector:
+    app: microbot-lb
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: microbot-lb
+spec:
+  type: LoadBalancer
+  selector:
+     app: microbot-lb
+  ports:
+  - name: microbot-lb
+    protocol: TCP
+    port: 80
+    targetPort: 80
