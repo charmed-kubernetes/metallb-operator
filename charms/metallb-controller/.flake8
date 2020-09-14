@@ -5,6 +5,7 @@ exclude:
   venv
   .git
   build
+  .build
   dist
   *.egg_info
   .tox

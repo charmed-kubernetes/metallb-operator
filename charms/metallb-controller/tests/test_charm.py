@@ -1,5 +1,3 @@
-# Copyright 2020 Camille Rodriguez
-# See LICENSE file for licensing details.
 
 import unittest
 from unittest.mock import Mock

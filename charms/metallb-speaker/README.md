@@ -1,28 +1,12 @@
-# charm-metallb-speaker
+# Metallb-Speaker Charm
 
 ## Description
 
-TODO: fill out the description
+The MetalLB charm offers a software network load balancing implementation that allows
+for LoadBalancing services in Kubernetes. 
 
-## Usage
+Upstream documentation can be found here : <https://metallb.universe.tf/>
 
-TODO: explain how to use the charm
-
-### Scale Out Usage
-
-...
-
-## Developing
-
-Create and activate a virtualenv,
-and install the development requirements,
-
-    virtualenv -p python3 venv
-    source venv/bin/activate
-    pip install -r requirements-dev
-
-## Testing
-
-Just run `run_tests`:
-
-    ./run_tests
+The metallb-speaker charm is meant to be used together with the metallb-controller charm.
+For information about deployment, usage, and more, please refer to the metallb-bundle
+documentation.

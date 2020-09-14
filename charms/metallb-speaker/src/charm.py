@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Copyright 2020 Camille Rodriguez
-# See LICENSE file for licensing details.
 
 from base64 import b64encode
 import logging

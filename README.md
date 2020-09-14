@@ -1,2 +1,108 @@
 # MetalLB Bundle
 
+## Overview
+
+The MetalLB charm offers a software network load balancing implementation that allows
+for LoadBalancing services in Kubernetes. 
+
+This bundle deploys MetalLB to a Juju K8s model. The individual charms that make
+up this bundle can be found under `charms/`.
+
+Upstream documentation can be found here : <https://metallb.universe.tf/>
+
+## Deploying
+
+### Setup
+
+Setting up this bundle requires a Kubernetes cluster, either on public cloud,
+on-premises cloud, or even on a MicroK8s single-node deployment. 
+
+### Setup MicroK8s
+
+You will need to install these snaps to get started:
+    sudo snap install juju --classic
+    sudo snap install microk8s --classic
+
+Next, you will need to add yourself to the `microk8s` group:
+
+    sudo usermod -aG microk8s $USER
+    newgrp microk8s
+
+Once MicroK8s is installed, you can verify that it is running adequately with:
+    microk8s.status
+
+For Juju to bootstrap a microk8s controller, two addons need to be enabled:
+    microk8s.enable dns storage
+
+Once that is done, you can bootstrap a juju controller:
+    juju bootstrap microk8s
+
+### Deploy the bundle
+
+The charm is by default using a layer 2 configuration, and the ip range 
+"192.168.1.240-192.168.1.250". You can use a bundle.yaml config to edit these,
+or use the juju config command line to edit it post-deployment. 
+
+    juju add-model metallb-system
+    juju deploy cs:~charmed-kubernetes/metallb-bundle
+
+#### Post-deployment config
+
+    juju config metallb-controller iprange=<IPRANGE>
+
+#### Bundle configuration
+
+A bundle.yaml would look like this:
+```
+description: A charm bundle to deploy MetalLB in Kubernetes
+bundle: kubernetes
+applications:
+  metallb-controller:
+    charm: cs:~charmed-kubernetes/metallb-controller
+    scale: 1
+    options:
+      iprange: "192.168.1.88-192.168.1.89" #Change this!
+  metallb-speaker:
+    charm: cs:~charmed-kubernetes/metallb-speaker
+    scale: 1
+```
+You would then deploy the bundle by calling this local file:
+    juju deploy ./bundle.yaml
+
+## Using MetalLB
+
+Once deployed, metallb will automatically assign ips from the range given to it
+to services of type `Load Balancer`. When the services are deleted, the ips are
+available again. MetalLB will only use the ips allocated in the pool(s) given to
+it, and more than one pool can be assigned as well. 
+
+## Example
+
+To test the usage of metallb, a simple webapp can be deployed. 
+An example manifest is included in this bundle, under `docs/example-microbot-lb.yaml`.
+You can use it by copying it locally:
+#TO-DO: change link once merged under charmed-kubernetes 
+    wget https://raw.githubusercontent.com/camille-rodriguez/metallb-bundle/master/docs/example-microbot-lb.yaml
+    microk8s.kubectl apply -f example-microbot-lb.yaml
+    microk8s.kubectl get service microbot-lb
+
+The EXTERNAL-IP is the ip assigned to the microbot service by the MetalLB controller. 
+If you reach this IP with a browser, you should see the image of a microbot. If you
+cannot, most probably the ip range is not correctly chosen. The ip range needs to
+be a reserved pool uniquely for metallb, to avoid ip conflicts. 
+
+To remove the example, simply delete the manifest with kubectl:
+    microk8s.kubectl delete -f example-microbot-lb.yaml
+
+
+## Removing MetalLB
+
+To remove metallb from the cluster, you can remove each application separately:
+
+    juju remove-application metallb-controller
+    juju remove-application metallb-speaker
+
+or alternatively, you can delete the model itself (be careful, if you deployed 
+additional things in this model, then these things would be deleted as well):
+
+    juju remove-model metallb-system

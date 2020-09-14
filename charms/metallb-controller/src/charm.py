@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Copyright 2020 Camille Rodriguez
-# See LICENSE file for licensing details.
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
