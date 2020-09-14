@@ -30,6 +30,7 @@ class MetallbControllerCharm(CharmBase):
         super().__init__(*args)
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.remove, self._on_remove)
 
     def _on_config_changed(self, _):
         self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
@@ -75,6 +76,16 @@ class MetallbControllerCharm(CharmBase):
 
         self.framework.model.unit.status = ActiveStatus("Ready")
 
+    def _on_remove(self, event):
+        if not self.framework.model.unit.is_leader():
+            return
+        
+        self.framework.model.unit.status = MaintenanceStatus("Removing pod")
+        logger.info("Removing artifacts that were created with the k8s API")
+        utils.delete_pod_security_policy_with_k8s_api()
+        utils.delete_namespaced_role_binding_with_API(name='config-watcher', namespace=self.NAMESPACE)
+        utils.delete_namespaced_role_with_api(name='config-watcher', namespace=self.NAMESPACE)
+        self.framework.model.unit.status = ActiveStatus("Removing extra config done.")
 
     def set_pod_spec(self):
         iprange = self.model.config["iprange"]
