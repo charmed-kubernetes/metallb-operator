@@ -35,6 +35,7 @@ class MetallbControllerCharm(CharmBase):
         self._stored.set_default(configured=False)
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
+        self._stored.set_default(container_image='metallb/controller:v0.9.3')
 
     def _on_config_changed(self, _):
         self._stored.configured = False
@@ -144,7 +145,7 @@ class MetallbControllerCharm(CharmBase):
                 },
                 'containers': [{
                     'name': 'controller',
-                    'image': 'metallb/controller:v0.9.3',
+                    'image': self._stored.container_image,
                     'imagePullPolicy': 'Always',
                     'ports': [{
                         'containerPort': 7472,

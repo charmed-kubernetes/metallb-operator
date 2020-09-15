@@ -22,7 +22,7 @@ class TestCharm(unittest.TestCase):
     @patch("utils.bind_role_with_api")
     @patch("utils.create_namespaced_role_with_api")
     @patch("utils.create_pod_security_policy_with_api")
-    def test_on_start(self, create_psp, create_ns_role, create_role_binding):
+    def test_on_start(self, create_psp, create_ns_role, create_ns_role_binding):
         """Test installation."""
         mock_pod_spec = self.harness.charm.set_pod_spec = Mock()
         self.assertFalse(self.harness.charm._stored.started)
@@ -30,7 +30,7 @@ class TestCharm(unittest.TestCase):
         mock_pod_spec.assert_called_once()
         create_psp.assert_called_once()
         create_ns_role.assert_called_once()
-        create_role_binding.assert_called_once()
+        create_ns_role_binding.assert_called_once()
         self.assertTrue(self.harness.charm._stored.started)
 
     def test_config_changed(self):

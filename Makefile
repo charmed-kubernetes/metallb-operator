@@ -29,14 +29,12 @@ clean:
 
 build:
     # builds all charms
-	@echo "Building metallb-controller charm in directory charms/metallb-controller/.build"
-	@mkdir -p charms/metallb-controller/.build
+	@echo "Building metallb-controller charm in directory charms/metallb-controller/build"
 	@charmcraft build --from charms/metallb-controller
-	@mv metallb-controller.charm charms/metallb-controller/.build/.
-	@echo "Building metallb-speaker charm in directory charms/metallb-speaker/.build"
-	@mkdir -p charms/metallb-speaker/.build
+	@mv metallb-controller.charm charms/metallb-controller/build/.
+	@echo "Building metallb-speaker charm in directory charms/metallb-speaker/build"
 	@charmcraft build --from charms/metallb-speaker
-	@mv metallb-speaker.charm charms/metallb-speaker/.build/.
+	@mv metallb-speaker.charm charms/metallb-speaker/build/.
 
 # # bypassing bug https://github.com/canonical/charmcraft/issues/109
 # unpack: build

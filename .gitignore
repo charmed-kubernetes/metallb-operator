@@ -3,7 +3,7 @@ build
 charms/metallb-controller/.build/
 charms/metallb-speaker/.build/
 .tox
-.coverage
+.coverage*
 .stestr/
 __pycache__
 cover
