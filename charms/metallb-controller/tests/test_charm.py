@@ -19,9 +19,9 @@ class TestCharm(unittest.TestCase):
         self.harness.begin()
 
     @patch.dict('charm.os.environ', {'JUJU_MODEL_NAME': 'unit-test-metallb'})
-    @patch("utils.create_pod_security_policy_with_api")
-    @patch("utils.create_namespaced_role_with_api")
     @patch("utils.bind_role_with_api")
+    @patch("utils.create_namespaced_role_with_api")
+    @patch("utils.create_pod_security_policy_with_api")
     def test_on_start(self, create_psp, create_ns_role, create_role_binding):
         """Test installation."""
         mock_pod_spec = self.harness.charm.set_pod_spec = Mock()
@@ -41,9 +41,9 @@ class TestCharm(unittest.TestCase):
         mock_pod_spec.assert_called_once()
         self.assertTrue(self.harness.charm._stored.configured)
 
-    @patch("utils.delete_pod_security_policy_with_api")
-    @patch("utils.delete_namespaced_role_binding_with_api")
     @patch("utils.delete_namespaced_role_with_api")
+    @patch("utils.delete_namespaced_role_binding_with_api")
+    @patch("utils.delete_pod_security_policy_with_api")
     def test_on_remove(self, delete_psp, delete_ns_role_binding, delete_ns_role):
         """Test remove hook."""
         self.harness.charm.on.remove.emit()
