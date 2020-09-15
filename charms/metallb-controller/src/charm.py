@@ -22,8 +22,7 @@ class MetallbControllerCharm(CharmBase):
     """MetalLB Controller Charm."""
 
     _stored = StoredState()
-
-    NAMESPACE = os.environ["JUJU_MODEL_NAME"]
+    # NAMESPACE = os.environ.get("JUJU_MODEL_NAME", 'metallb-system')
 
     def __init__(self, *args):
         """Charm initialization for events observation."""
@@ -31,12 +30,19 @@ class MetallbControllerCharm(CharmBase):
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self.on_remove)
+        # -- initialize states --
+        self._stored.set_default(started=False)
+        self._stored.set_default(configured=False)
+        # -- base values --
+        self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
 
     def _on_config_changed(self, _):
+        self._stored.configured = False
         self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
         logger.info('Reapplying the updated pod spec')
         self.set_pod_spec()
         self.framework.model.unit.status = ActiveStatus("Ready")
+        self._stored.configured = True
 
     def on_start(self, event):
         """Occurs upon start or installation of the charm."""
@@ -48,7 +54,7 @@ class MetallbControllerCharm(CharmBase):
         self.set_pod_spec()
 
         response = utils.create_pod_security_policy_with_api(
-            namespace=self.NAMESPACE,
+            namespace=self._stored.namespace,
         )
         if not response:
             self.framework.model.unit.status = \
@@ -57,7 +63,7 @@ class MetallbControllerCharm(CharmBase):
 
         response = utils.create_namespaced_role_with_api(
             name='config-watcher',
-            namespace=self.NAMESPACE,
+            namespace=self._stored.namespace,
             labels={'app': 'metallb'},
             resources=['configmaps'],
             verbs=['get', 'list', 'watch']
@@ -69,7 +75,7 @@ class MetallbControllerCharm(CharmBase):
 
         response = utils.bind_role_with_api(
             name='config-watcher',
-            namespace=self.NAMESPACE,
+            namespace=self._stored.namespace,
             labels={'app': 'metallb'},
             subject_name='controller'
         )
@@ -79,6 +85,8 @@ class MetallbControllerCharm(CharmBase):
             return
 
         self.framework.model.unit.status = ActiveStatus("Ready")
+        self._stored.started = True
+        self._stored.configured = True
 
     def on_remove(self, event):
         """Remove of artifacts created by the K8s API."""
@@ -90,13 +98,15 @@ class MetallbControllerCharm(CharmBase):
         utils.delete_pod_security_policy_with_api(name='controller')
         utils.delete_namespaced_role_binding_with_api(
             name='config-watcher',
-            namespace=self.NAMESPACE
+            namespace=self._stored.namespace
         )
         utils.delete_namespaced_role_with_api(
             name='config-watcher',
-            namespace=self.NAMESPACE
+            namespace=self._stored.namespace
         )
         self.framework.model.unit.status = ActiveStatus("Removing extra config done.")
+        self._stored.configured = False
+        self._stored.started = False
 
     def set_pod_spec(self):
         """Set pod spec."""
