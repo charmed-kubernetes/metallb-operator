@@ -1,14 +1,18 @@
-# MetalLB Bundle
+# MetalLB Charm Bundle
 
 ## Overview
 
 The MetalLB charm offers a software network load balancing implementation that allows
-for LoadBalancing services in Kubernetes. 
+for LoadBalancing services in Kubernetes.
 
 This bundle deploys MetalLB to a Juju K8s model. The individual charms that make
 up this bundle can be found under `charms/`.
 
 Upstream documentation can be found here : <https://metallb.universe.tf/>
+
+MetalLB has two modes of operation: Layer 2 or BGP. Both concepts are explained here
+https://ubuntu.com/kubernetes/docs/metallb. This charm currently supports *only* the
+layer 2 mode.
 
 ## Deploying
 
@@ -116,6 +120,12 @@ To edit this charm and run it locally to test changes, pull this repo:
 To build the charm, simply use make in the base folder:
     cd metallb-bundle
     make build
+
+Edit the bundle.yaml to point to local charms instead of the charmhub.
+    metallb-controller:
+        charm: ./charms/metallb-controller/.build/metallb-controller.charm
+    metallb-speaker:
+        charm: ./charms/metallb-speaker/.build/metallb-speaker.charm
 
 Make sure you have juju bootstrapped to some k8s cluster, and go for it:
     juju add-model metallb-system
