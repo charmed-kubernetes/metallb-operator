@@ -1,4 +1,3 @@
-
 name: metallb-controller
 description: |
   This charm deploys MetalLB controller in a Kubernetes model, which provides 
