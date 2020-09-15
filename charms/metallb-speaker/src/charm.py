@@ -24,14 +24,16 @@ class MetallbSpeakerCharm(CharmBase):
 
     _stored = StoredState()
 
-    NAMESPACE = os.environ["JUJU_MODEL_NAME"]
-    CONTAINER_IMAGE = 'metallb/speaker:v0.9.3'
-
     def __init__(self, *args):
         """Charm initialization for events observation."""
         super().__init__(*args)
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.remove, self.on_remove)
+        # -- initialize states --
+        self._stored.set_default(started=False)
+        # -- base values --
+        self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
+        self._stored.set_default(container_image='metallb/speaker:v0.9.3')
 
     def on_start(self, event):
         """Occurs upon start or installation of the charm."""
@@ -40,8 +42,95 @@ class MetallbSpeakerCharm(CharmBase):
 
         logging.info('Setting the pod spec')
         self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
-        secret = utils._random_secret(128)
+        self.set_pod_spec()
 
+        response = utils.create_pod_security_policy_with_api(
+            namespace=self._stored.namespace,
+        )
+        if not response:
+            self.framework.model.unit.status = \
+                BlockedStatus("An error occured during init. Please check the logs.")
+            return
+
+        response = utils.create_namespaced_role_with_api(
+            name='config-watcher',
+            namespace=self._stored.namespace,
+            labels={'app': 'metallb'},
+            resources=['configmaps'],
+            verbs=['get', 'list', 'watch']
+        )
+        if not response:
+            self.framework.model.unit.status = \
+                BlockedStatus("An error occured during init. Please check the logs.")
+            return
+
+        response = utils.create_namespaced_role_with_api(
+            name='pod-lister',
+            namespace=self._stored.namespace,
+            labels={'app': 'metallb'},
+            resources=['pods'],
+            verbs=['list']
+        )
+        if not response:
+            self.framework.model.unit.status = \
+                BlockedStatus("An error occured during init. Please check the logs.")
+            return
+
+        response = utils.bind_role_with_api(
+            name='config-watcher',
+            namespace=self._stored.namespace,
+            labels={'app': 'metallb'},
+            subject_name='speaker'
+        )
+        if not response:
+            self.framework.model.unit.status = \
+                BlockedStatus("An error occured during init. Please check the logs.")
+            return
+
+        response = utils.bind_role_with_api(
+            name='pod-lister',
+            namespace=self._stored.namespace,
+            labels={'app': 'metallb'},
+            subject_name='speaker'
+        )
+        if not response:
+            self.framework.model.unit.status = \
+                BlockedStatus("An error occured during init. Please check the logs.")
+            return
+
+        self.framework.model.unit.status = ActiveStatus("Ready")
+        self._stored.started = True
+
+    def on_remove(self, event):
+        """Remove artifacts created by the K8s API."""
+        if not self.framework.model.unit.is_leader():
+            return
+
+        self.framework.model.unit.status = MaintenanceStatus("Removing pod")
+        logger.info("Removing artifacts that were created with the k8s API")
+        utils.delete_pod_security_policy_with_api(name='speaker')
+        utils.delete_namespaced_role_binding_with_api(
+            name='config-watcher',
+            namespace=self._stored.namespace
+        )
+        utils.delete_namespaced_role_with_api(
+            name='config-watcher',
+            namespace=self._stored.namespace
+        )
+        utils.delete_namespaced_role_binding_with_api(
+            name='pod-lister',
+            namespace=self._stored.namespace
+        )
+        utils.delete_namespaced_role_with_api(
+            name='pod-lister',
+            namespace=self._stored.namespace
+        )
+        self.framework.model.unit.status = ActiveStatus("Removing extra config done.")
+        self._stored.started = False
+
+    def set_pod_spec(self):
+        """Set pod spec."""
+        secret = utils._random_secret(128)
         self.framework.model.pod.set_spec(
             {
                 'version': 3,
@@ -70,7 +159,7 @@ class MetallbSpeakerCharm(CharmBase):
                 },
                 'containers': [{
                     'name': 'speaker',
-                    'image': self.CONTAINER_IMAGE,
+                    'image': self._stored.container_image,
                     'imagePullPolicy': 'Always',
                     'ports': [{
                         'containerPort': 7472,
@@ -149,88 +238,6 @@ class MetallbSpeakerCharm(CharmBase):
                 },
             },
         )
-
-        response = utils.create_pod_security_policy_with_api(
-            namespace=self.NAMESPACE,
-        )
-        if not response:
-            self.framework.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_with_api(
-            name='config-watcher',
-            namespace=self.NAMESPACE,
-            labels={'app': 'metallb'},
-            resources=['configmaps'],
-            verbs=['get', 'list', 'watch']
-        )
-        if not response:
-            self.framework.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_with_api(
-            name='pod-lister',
-            namespace=self.NAMESPACE,
-            labels={'app': 'metallb'},
-            resources=['pods'],
-            verbs=['list']
-        )
-        if not response:
-            self.framework.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.bind_role_with_api(
-            name='config-watcher',
-            namespace=self.NAMESPACE,
-            labels={'app': 'metallb'},
-            subject_name='speaker'
-        )
-        if not response:
-            self.framework.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.bind_role_with_api(
-            name='pod-lister',
-            namespace=self.NAMESPACE,
-            labels={'app': 'metallb'},
-            subject_name='speaker'
-        )
-        if not response:
-            self.framework.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        self.framework.model.unit.status = ActiveStatus("Ready")
-
-    def on_remove(self, event):
-        """Remove artifacts created by the K8s API."""
-        if not self.framework.model.unit.is_leader():
-            return
-
-        self.framework.model.unit.status = MaintenanceStatus("Removing pod")
-        logger.info("Removing artifacts that were created with the k8s API")
-        utils.delete_pod_security_policy_with_api(name='speaker')
-        utils.delete_namespaced_role_binding_with_api(
-            name='config-watcher',
-            namespace=self.NAMESPACE
-        )
-        utils.delete_namespaced_role_with_api(
-            name='config-watcher',
-            namespace=self.NAMESPACE
-        )
-        utils.delete_namespaced_role_binding_with_api(
-            name='pod-lister',
-            namespace=self.NAMESPACE
-        )
-        utils.delete_namespaced_role_with_api(
-            name='pod-lister',
-            namespace=self.NAMESPACE
-        )
-        self.framework.model.unit.status = ActiveStatus("Removing extra config done.")
 
 
 if __name__ == "__main__":
