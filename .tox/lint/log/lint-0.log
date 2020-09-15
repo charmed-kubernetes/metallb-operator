@@ -1,7 +1,0 @@
-action: lint, msg: getenv
-cwd: /home/crodriguez/Projects/metallb-bundle/.tox
-cmd: /usr/bin/python3 -m virtualenv --no-download --python /usr/bin/python3 lint
-created virtual environment CPython3.8.2.final.0-64 in 201ms
-  creator CPython3Posix(dest=/home/crodriguez/Projects/metallb-bundle/.tox/lint, clear=False, global=False)
-  seeder FromAppData(download=False, idna=latest, six=latest, html5lib=latest, appdirs=latest, setuptools=latest, progress=latest, pyparsing=latest, msgpack=latest, lockfile=latest, colorama=latest, packaging=latest, wheel=latest, contextlib2=latest, chardet=latest, webencodings=latest, pip=latest, certifi=latest, pkg_resources=latest, CacheControl=latest, retrying=latest, urllib3=latest, ipaddr=latest, distro=latest, distlib=latest, requests=latest, pytoml=latest, pep517=latest, via=copy, app_data_dir=/home/crodriguez/.local/share/virtualenv/seed-app-data/v1.0.1.debian)
-  activators BashActivator,CShellActivator,FishActivator,PowerShellActivator,PythonActivator,XonshActivator
