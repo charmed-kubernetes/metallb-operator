@@ -1,12 +1,13 @@
-# MetalLB Charm Bundle
+# MetalLB Operator
 
 ## Overview
 
-The MetalLB charm offers a software network load balancing implementation that allows
+The MetalLB Operator offers a software network load balancing implementation that allows
 for LoadBalancing services in Kubernetes.
 
-This bundle deploys MetalLB to a Juju K8s model. The individual charms that make
-up this bundle can be found under `charms/`.
+This Operator deploys a charm bundle to a Juju K8s model. The bundle is composed of the 
+charm metallb-controller and the charm metallb-speaker. These individual charms can be 
+found under the `charms/` directory.
 
 Upstream documentation can be found here : <https://metallb.universe.tf/>
 
