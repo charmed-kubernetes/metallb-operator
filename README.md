@@ -117,9 +117,9 @@ To edit this charm and run it locally to test changes, pull this repo:
     git clone https://github.com/camille-rodriguez/metallb-bundle.git
     
 
-To build the charm, simply use make in the base folder:
+To build the charm, simply use tox in the base folder:
     cd metallb-bundle
-    make build
+    tox -e build
 
 Edit the bundle.yaml to point to local charms instead of the charmhub.
     metallb-controller:
