@@ -113,10 +113,11 @@ additional things in this model, then these things would be deleted as well):
 
 ## Developing
 
-(Valid while this charm is still under Camille Rodriguez's repo)
 To edit this charm and run it locally to test changes, pull this repo:
-    git clone https://github.com/camille-rodriguez/metallb-bundle.git
-    
+    git clone https://github.com/charmed-kubernetes/metallb-operator.git
+
+If you plan on proposing edits to the operator, please fork the repo
+before pulling it.
 
 To build the charm, simply use tox in the base folder:
     cd metallb-bundle
