@@ -1,0 +1,14 @@
+description: |
+  A local overlay to deploy the charms from this repo. This is meant for developers.
+  The appropriate steps to use this would be to :
+  1) pull the repo locally
+  2) cd metallb-operator
+  2) build the charms with `tox -e build` 
+  3) deploy with the overlay: 
+      `juju deploy ./bundle.yaml --overlay ./docs/local-overlay.yaml`
+bundle: kubernetes
+applications:
+  metallb-controller:
+    charm: ./charms/metallb-controller/build/metallb-controller.charm
+  metallb-speaker:
+    charm: ./charms/metallb-speaker/build/metallb-speaker.charm

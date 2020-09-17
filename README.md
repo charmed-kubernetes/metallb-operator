@@ -25,6 +25,7 @@ on-premises cloud, or even on a MicroK8s single-node deployment.
 ### Setup MicroK8s
 
 You will need to install these snaps to get started:
+
     sudo snap install juju --classic
     sudo snap install microk8s --classic
 
@@ -34,12 +35,15 @@ Next, you will need to add yourself to the `microk8s` group:
     newgrp microk8s
 
 Once MicroK8s is installed, you can verify that it is running adequately with:
+
     microk8s.status
 
 For Juju to bootstrap a microk8s controller, two addons need to be enabled:
+
     microk8s.enable dns storage
 
 Once that is done, you can bootstrap a juju controller:
+
     juju bootstrap microk8s
 
 ### Deploy the bundle
@@ -86,8 +90,8 @@ it, and more than one pool can be assigned as well.
 To test the usage of metallb, a simple webapp can be deployed. 
 An example manifest is included in this bundle, under `docs/example-microbot-lb.yaml`.
 You can use it by copying it locally:
-#TO-DO: change link once merged under charmed-kubernetes 
-    wget https://raw.githubusercontent.com/camille-rodriguez/metallb-bundle/master/docs/example-microbot-lb.yaml
+
+    wget https://raw.githubusercontent.com/charmed-kubernetes/metallb-operator/master/docs/example-microbot-lb.yaml
     microk8s.kubectl apply -f example-microbot-lb.yaml
     microk8s.kubectl get service microbot-lb
 
@@ -97,6 +101,7 @@ cannot, most probably the ip range is not correctly chosen. The ip range needs t
 be a reserved pool uniquely for metallb, to avoid ip conflicts. 
 
 To remove the example, simply delete the manifest with kubectl:
+
     microk8s.kubectl delete -f example-microbot-lb.yaml
 
 ## Removing MetalLB
@@ -114,21 +119,25 @@ additional things in this model, then these things would be deleted as well):
 ## Developing
 
 To edit this charm and run it locally to test changes, pull this repo:
+
     git clone https://github.com/charmed-kubernetes/metallb-operator.git
 
 If you plan on proposing edits to the operator, please fork the repo
 before pulling it.
 
 To build the charm, simply use tox in the base folder:
+
     cd metallb-bundle
     tox -e build
 
 Edit the bundle.yaml to point to local charms instead of the charmhub.
+
     metallb-controller:
         charm: ./charms/metallb-controller/.build/metallb-controller.charm
     metallb-speaker:
         charm: ./charms/metallb-speaker/.build/metallb-speaker.charm
 
 Make sure you have juju bootstrapped to some k8s cluster, and go for it:
+
     juju add-model metallb-system
     juju deploy .

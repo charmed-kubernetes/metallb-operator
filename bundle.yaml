@@ -2,14 +2,10 @@ description: A charm bundle to deploy MetalLB in Kubernetes
 bundle: kubernetes
 applications:
   metallb-controller:
-    charm: ./charms/metallb-controller/build/metallb-controller.charm
-    # charm: cs:~charmed-kubernetes/metallb-controller
-    source: ./charms/metallb-controller
+    charm: cs:~charmed-kubernetes/metallb-controller
     scale: 1
     options:
       iprange: "192.168.1.88-192.168.1.89"
   metallb-speaker:
-    charm: ./charms/metallb-speaker/build/metallb-speaker.charm
-    # charm: cs:~charmed-kubernetes/metallb-speaker
-    source: ./charms/metallb-speaker
+    charm: cs:~charmed-kubernetes/metallb-speaker
     scale: 1

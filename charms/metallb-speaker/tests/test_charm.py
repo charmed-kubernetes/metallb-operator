@@ -19,7 +19,7 @@ class TestCharm(unittest.TestCase):
         self.harness.begin()
 
     @patch.dict('charm.os.environ', {'JUJU_MODEL_NAME': 'unit-test-metallb'})
-    @patch("utils.bind_role_with_api")
+    @patch("utils.create_namespaced_role_binding_with_api")
     @patch("utils.create_namespaced_role_with_api")
     @patch("utils.create_pod_security_policy_with_api")
     def test_on_start(self, create_psp, create_ns_role, create_ns_role_binding):
