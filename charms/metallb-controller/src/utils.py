@@ -85,7 +85,7 @@ def delete_pod_security_policy_with_api(name):
 def create_namespaced_role_with_api(name, namespace, labels, resources, verbs,
                                     api_groups=['']):
     """Create namespaced role."""
-    # Using API because of bug https://github.com/canonical/operator/issues/390
+    # Using API because of bug https://bugs.launchpad.net/juju/+bug/1896076
     logging.info('Creating namespaced role with K8s API')
     _load_kube_config()
 
@@ -140,7 +140,7 @@ def delete_namespaced_role_with_api(name, namespace):
 def bind_role_with_api(name, namespace, labels, subject_name,
                        subject_kind='ServiceAccount'):
     """Bind namespaced role to subject."""
-    # Using API because of bug https://github.com/canonical/operator/issues/390
+    # Using API because of bug https://bugs.launchpad.net/juju/+bug/1896076
     logging.info('Creating role binding with K8s API')
     _load_kube_config()
 
