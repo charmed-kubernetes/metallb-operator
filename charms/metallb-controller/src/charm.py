@@ -111,7 +111,11 @@ class MetallbControllerCharm(CharmBase):
 
     def set_pod_spec(self):
         """Set pod spec."""
-        iprange = self.model.config["iprange"]
+        iprange = self.model.config["iprange"].split(",")
+        cm = "address-pools:\n- name: default\n  protocol: layer2\n  addresses:\n"
+        for range in iprange:
+            cm += "  - " + range + "\n"
+
         self.framework.model.pod.set_spec(
             {
                 'version': 3,
@@ -182,8 +186,7 @@ class MetallbControllerCharm(CharmBase):
                 },
                 'configMaps': {
                     'config': {
-                        'config': "address-pools:\n- name: default\n  "
-                        "protocol: layer2\n  addresses:\n  - " + iprange
+                        'config': cm
                     }
                 }
             },

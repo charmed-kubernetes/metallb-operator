@@ -9,9 +9,11 @@ options:
       on your local network directly, to give the machine's MAC address to clients.
   iprange:
     type: string
-    default: "192.168.1.240-192.168.1.250"
+    default: "192.168.1.240-192.168.1.247"
     description: |
       For the Layer 2 Configuration only. This is the IP range from which MetalLB
       will have control over and choose IPs from to distribute to kubernetes services
-      requesting an external IP of type Load Balancer. 
-      Format of the range (no spaces): "192.168.1.240-192.168.1.250"
+      requesting an external IP of type Load Balancer. The ip range can be specified as
+      a range (i.e 192.168.1.240-192.168.1.247") or as a CIDR (i.e "192.168.1.240/29")
+      To be able to specify more than one ip pool, only the CIDR notation can be used
+      (i.e "192.168.1.88/31,192.168.1.240/30").
