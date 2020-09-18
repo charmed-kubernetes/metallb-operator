@@ -4,6 +4,7 @@
 import logging
 import os
 
+from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -23,7 +24,6 @@ class MetallbControllerCharm(CharmBase):
     """MetalLB Controller Charm."""
 
     _stored = StoredState()
-    # NAMESPACE = os.environ.get("JUJU_MODEL_NAME", 'metallb-system')
 
     def __init__(self, *args):
         """Charm initialization for events observation."""
@@ -31,6 +31,7 @@ class MetallbControllerCharm(CharmBase):
         if not self.framework.model.unit.is_leader():
             self.framework.model.unit.status = WaitingStatus("Waiting for leadership")
             return
+        self.image = OCIImageResource(self, 'metallb-controller-image')
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self.on_remove)
@@ -39,7 +40,6 @@ class MetallbControllerCharm(CharmBase):
         self._stored.set_default(configured=False)
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
-        self._stored.set_default(container_image='metallb/controller:v0.9.3')
 
     def _on_config_changed(self, _):
         self._stored.configured = False
@@ -114,6 +114,13 @@ class MetallbControllerCharm(CharmBase):
         for range in iprange:
             cm += "  - " + range + "\n"
 
+        try:
+            image_info = self.image.fetch()
+        except OCIImageResourceError:
+            logging.exception('An error occured while fetching the container image.')
+            self.model.unit.status = BlockedStatus("Error fetching container image.")
+            return
+
         self.framework.model.pod.set_spec(
             {
                 'version': 3,
@@ -147,7 +154,7 @@ class MetallbControllerCharm(CharmBase):
                 },
                 'containers': [{
                     'name': 'controller',
-                    'image': self._stored.container_image,
+                    'imageDetails': image_info,
                     'imagePullPolicy': 'Always',
                     'ports': [{
                         'containerPort': 7472,

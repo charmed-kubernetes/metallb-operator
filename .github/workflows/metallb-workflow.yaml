@@ -106,8 +106,8 @@ jobs:
     - name: Deploy MetalLB
       run: |
         sudo juju add-model metallb-system
-        sudo juju deploy ./metallb-controller.charm
-        sudo juju deploy ./metallb-speaker.charm
+        sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image='metallb/controller:v0.9.3'
+        sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image='metallb/speaker:v0.9.3'
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
     
     - name: Wait for stable environment

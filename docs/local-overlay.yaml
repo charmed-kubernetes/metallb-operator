@@ -9,6 +9,10 @@ description: |
 bundle: kubernetes
 applications:
   metallb-controller:
-    charm: ./charms/metallb-controller/build/metallb-controller.charm
+    charm: ../charms/metallb-controller/build/metallb-controller.charm
+    resources:
+      metallb-controller-image: 'metallb/controller:v0.9.3'
   metallb-speaker:
-    charm: ./charms/metallb-speaker/build/metallb-speaker.charm
+    charm: ../charms/metallb-speaker/build/metallb-speaker.charm
+    resources:
+      metallb-controller-image: 'metallb/speaker:v0.9.3'

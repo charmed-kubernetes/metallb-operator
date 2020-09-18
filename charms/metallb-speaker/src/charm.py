@@ -5,6 +5,7 @@ import logging
 import os
 from base64 import b64encode
 
+from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -31,6 +32,7 @@ class MetallbSpeakerCharm(CharmBase):
         if not self.model.unit.is_leader():
             self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
+        self.image = OCIImageResource(self, 'metallb-speaker-image')
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.remove, self.on_remove)
         # -- initialize states --
@@ -130,6 +132,13 @@ class MetallbSpeakerCharm(CharmBase):
     def set_pod_spec(self):
         """Set pod spec."""
         secret = utils._random_secret(128)
+        try:
+            image_info = self.image.fetch()
+        except OCIImageResourceError:
+            logging.exception('An error occured while fetching the container image.')
+            self.model.unit.status = BlockedStatus("Error fetching container image.")
+            return
+
         self.model.pod.set_spec(
             {
                 'version': 3,
@@ -158,7 +167,7 @@ class MetallbSpeakerCharm(CharmBase):
                 },
                 'containers': [{
                     'name': 'speaker',
-                    'image': self._stored.container_image,
+                    'imageDetails': image_info,
                     'imagePullPolicy': 'Always',
                     'ports': [{
                         'containerPort': 7472,

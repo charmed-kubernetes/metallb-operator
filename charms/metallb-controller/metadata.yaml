@@ -17,3 +17,7 @@ tags:
   - metallb
 deployment:
   type: stateless
+resources:
+  metallb-controller-image:
+    type: oci-image
+    description: upstream docker image for metallb-controller
