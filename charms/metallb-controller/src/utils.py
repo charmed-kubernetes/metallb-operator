@@ -59,11 +59,11 @@ def create_pod_security_policy_with_api(namespace):
         except ApiException as err:
             logging.exception("Exception when calling PolicyV1beta1Api"
                               "->create_pod_security_policy.")
-            if err.status != 409:
+            if err.status == 409:
                 # ignoring 409 (AlreadyExists) errors
-                return False
-            else:
                 return True
+            else:
+                return False
 
 
 def delete_pod_security_policy_with_api(name):
@@ -109,11 +109,11 @@ def create_namespaced_role_with_api(name, namespace, labels, resources, verbs,
         except ApiException as err:
             logging.exception("Exception when calling RbacAuthorizationV1Api"
                               "->create_namespaced_role.")
-            if err.status != 409:
+            if err.status == 409:
                 # ignoring 409 (AlreadyExists) errors
-                return False
-            else:
                 return True
+            else:
+                return False
 
 
 def delete_namespaced_role_with_api(name, namespace):
@@ -137,8 +137,8 @@ def delete_namespaced_role_with_api(name, namespace):
                               "->delete_namespaced_role.")
 
 
-def bind_role_with_api(name, namespace, labels, subject_name,
-                       subject_kind='ServiceAccount'):
+def create_namespaced_role_binding_with_api(name, namespace, labels, subject_name,
+                                            subject_kind='ServiceAccount'):
     """Bind namespaced role to subject."""
     # Using API because of bug https://bugs.launchpad.net/juju/+bug/1896076
     logging.info('Creating role binding with K8s API')
@@ -170,11 +170,11 @@ def bind_role_with_api(name, namespace, labels, subject_name,
         except ApiException as err:
             logging.exception("Exception when calling RbacAuthorizationV1Api"
                               "->create_namespaced_role_binding.")
-            if err.status != 409:
+            if err.status == 409:
                 # ignoring 409 (AlreadyExists) errors
-                return False
-            else:
                 return True
+            else:
+                return False
 
 
 def delete_namespaced_role_binding_with_api(name, namespace):

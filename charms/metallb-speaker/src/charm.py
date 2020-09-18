@@ -5,6 +5,7 @@ import logging
 import os
 from base64 import b64encode
 
+from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -12,6 +13,7 @@ from ops.model import (
     ActiveStatus,
     BlockedStatus,
     MaintenanceStatus,
+    WaitingStatus,
 )
 
 import utils
@@ -27,6 +29,10 @@ class MetallbSpeakerCharm(CharmBase):
     def __init__(self, *args):
         """Charm initialization for events observation."""
         super().__init__(*args)
+        if not self.model.unit.is_leader():
+            self.model.unit.status = WaitingStatus("Waiting for leadership")
+            return
+        self.image = OCIImageResource(self, 'metallb-speaker-image')
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.remove, self.on_remove)
         # -- initialize states --
@@ -37,18 +43,15 @@ class MetallbSpeakerCharm(CharmBase):
 
     def on_start(self, event):
         """Occurs upon start or installation of the charm."""
-        if not self.framework.model.unit.is_leader():
-            return
-
         logging.info('Setting the pod spec')
-        self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
+        self.model.unit.status = MaintenanceStatus("Configuring pod")
         self.set_pod_spec()
 
         response = utils.create_pod_security_policy_with_api(
             namespace=self._stored.namespace,
         )
         if not response:
-            self.framework.model.unit.status = \
+            self.model.unit.status = \
                 BlockedStatus("An error occured during init. Please check the logs.")
             return
 
@@ -60,7 +63,8 @@ class MetallbSpeakerCharm(CharmBase):
             verbs=['get', 'list', 'watch']
         )
         if not response:
-            self.framework.model.unit.status = \
+            print(response)
+            self.model.unit.status = \
                 BlockedStatus("An error occured during init. Please check the logs.")
             return
 
@@ -72,41 +76,38 @@ class MetallbSpeakerCharm(CharmBase):
             verbs=['list']
         )
         if not response:
-            self.framework.model.unit.status = \
+            self.model.unit.status = \
                 BlockedStatus("An error occured during init. Please check the logs.")
             return
 
-        response = utils.bind_role_with_api(
+        response = utils.create_namespaced_role_binding_with_api(
             name='config-watcher',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
             subject_name='speaker'
         )
         if not response:
-            self.framework.model.unit.status = \
+            self.model.unit.status = \
                 BlockedStatus("An error occured during init. Please check the logs.")
             return
 
-        response = utils.bind_role_with_api(
+        response = utils.create_namespaced_role_binding_with_api(
             name='pod-lister',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
             subject_name='speaker'
         )
         if not response:
-            self.framework.model.unit.status = \
+            self.model.unit.status = \
                 BlockedStatus("An error occured during init. Please check the logs.")
             return
 
-        self.framework.model.unit.status = ActiveStatus("Ready")
+        self.model.unit.status = ActiveStatus("Ready")
         self._stored.started = True
 
     def on_remove(self, event):
         """Remove artifacts created by the K8s API."""
-        if not self.framework.model.unit.is_leader():
-            return
-
-        self.framework.model.unit.status = MaintenanceStatus("Removing pod")
+        self.model.unit.status = MaintenanceStatus("Removing pod")
         logger.info("Removing artifacts that were created with the k8s API")
         utils.delete_pod_security_policy_with_api(name='speaker')
         utils.delete_namespaced_role_binding_with_api(
@@ -125,13 +126,20 @@ class MetallbSpeakerCharm(CharmBase):
             name='pod-lister',
             namespace=self._stored.namespace
         )
-        self.framework.model.unit.status = ActiveStatus("Removing extra config done.")
+        self.model.unit.status = ActiveStatus("Removing extra config done.")
         self._stored.started = False
 
     def set_pod_spec(self):
         """Set pod spec."""
         secret = utils._random_secret(128)
-        self.framework.model.pod.set_spec(
+        try:
+            image_info = self.image.fetch()
+        except OCIImageResourceError:
+            logging.exception('An error occured while fetching the container image.')
+            self.model.unit.status = BlockedStatus("Error fetching container image.")
+            return
+
+        self.model.pod.set_spec(
             {
                 'version': 3,
                 'serviceAccount': {
@@ -159,7 +167,7 @@ class MetallbSpeakerCharm(CharmBase):
                 },
                 'containers': [{
                     'name': 'speaker',
-                    'image': self._stored.container_image,
+                    'imageDetails': image_info,
                     'imagePullPolicy': 'Always',
                     'ports': [{
                         'containerPort': 7472,

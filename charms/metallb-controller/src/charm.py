@@ -4,6 +4,7 @@
 import logging
 import os
 
+from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -11,6 +12,7 @@ from ops.model import (
     ActiveStatus,
     BlockedStatus,
     MaintenanceStatus,
+    WaitingStatus,
 )
 
 import utils
@@ -22,11 +24,14 @@ class MetallbControllerCharm(CharmBase):
     """MetalLB Controller Charm."""
 
     _stored = StoredState()
-    # NAMESPACE = os.environ.get("JUJU_MODEL_NAME", 'metallb-system')
 
     def __init__(self, *args):
         """Charm initialization for events observation."""
         super().__init__(*args)
+        if not self.framework.model.unit.is_leader():
+            self.framework.model.unit.status = WaitingStatus("Waiting for leadership")
+            return
+        self.image = OCIImageResource(self, 'metallb-controller-image')
         self.framework.observe(self.on.start, self.on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self.on_remove)
@@ -35,7 +40,6 @@ class MetallbControllerCharm(CharmBase):
         self._stored.set_default(configured=False)
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
-        self._stored.set_default(container_image='metallb/controller:v0.9.3')
 
     def _on_config_changed(self, _):
         self._stored.configured = False
@@ -47,9 +51,6 @@ class MetallbControllerCharm(CharmBase):
 
     def on_start(self, event):
         """Occurs upon start or installation of the charm."""
-        if not self.framework.model.unit.is_leader():
-            return
-
         logging.info('Setting the pod spec')
         self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
         self.set_pod_spec()
@@ -74,7 +75,7 @@ class MetallbControllerCharm(CharmBase):
                 BlockedStatus("An error occured during init. Please check the logs.")
             return
 
-        response = utils.bind_role_with_api(
+        response = utils.create_namespaced_role_binding_with_api(
             name='config-watcher',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
@@ -91,9 +92,6 @@ class MetallbControllerCharm(CharmBase):
 
     def on_remove(self, event):
         """Remove of artifacts created by the K8s API."""
-        if not self.framework.model.unit.is_leader():
-            return
-
         self.framework.model.unit.status = MaintenanceStatus("Removing pod")
         logger.info("Removing artifacts that were created with the k8s API")
         utils.delete_pod_security_policy_with_api(name='controller')
@@ -115,6 +113,13 @@ class MetallbControllerCharm(CharmBase):
         cm = "address-pools:\n- name: default\n  protocol: layer2\n  addresses:\n"
         for range in iprange:
             cm += "  - " + range + "\n"
+
+        try:
+            image_info = self.image.fetch()
+        except OCIImageResourceError:
+            logging.exception('An error occured while fetching the container image.')
+            self.model.unit.status = BlockedStatus("Error fetching container image.")
+            return
 
         self.framework.model.pod.set_spec(
             {
@@ -149,7 +154,7 @@ class MetallbControllerCharm(CharmBase):
                 },
                 'containers': [{
                     'name': 'controller',
-                    'image': self._stored.container_image,
+                    'imageDetails': image_info,
                     'imagePullPolicy': 'Always',
                     'ports': [{
                         'containerPort': 7472,

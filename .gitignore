@@ -6,4 +6,5 @@ charms/metallb-speaker/.build/
 .coverage*
 .stestr/
 __pycache__
+coverage
 cover

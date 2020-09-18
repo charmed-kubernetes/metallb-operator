@@ -16,3 +16,7 @@ tags:
   - metallb
 deployment:
   type: daemon
+resources:
+  metallb-speaker-image:
+    type: oci-image
+    description: upstream docker image for metallb-controller
