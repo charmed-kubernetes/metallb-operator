@@ -5,6 +5,7 @@ import logging
 import os
 
 from oci_image import OCIImageResource, OCIImageResourceError
+
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -28,8 +29,8 @@ class MetallbControllerCharm(CharmBase):
     def __init__(self, *args):
         """Charm initialization for events observation."""
         super().__init__(*args)
-        if not self.framework.model.unit.is_leader():
-            self.framework.model.unit.status = WaitingStatus("Waiting for leadership")
+        if not self.model.unit.is_leader():
+            self.model.unit.status = WaitingStatus("Waiting for leadership")
             return
         self.image = OCIImageResource(self, 'metallb-controller-image')
         self.framework.observe(self.on.start, self.on_start)
@@ -41,58 +42,44 @@ class MetallbControllerCharm(CharmBase):
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
 
-    def _on_config_changed(self, _):
+    def _on_config_changed(self, event):
+        if not self._stored.started:
+            return
         self._stored.configured = False
-        self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
+        self.model.unit.status = MaintenanceStatus("Configuring pod")
         logger.info('Reapplying the updated pod spec')
         self.set_pod_spec()
-        self.framework.model.unit.status = ActiveStatus("Ready")
+        self.model.unit.status = ActiveStatus("Ready")
         self._stored.configured = True
 
     def on_start(self, event):
         """Occurs upon start or installation of the charm."""
         logging.info('Setting the pod spec')
-        self.framework.model.unit.status = MaintenanceStatus("Configuring pod")
+        self.model.unit.status = MaintenanceStatus("Configuring pod")
         self.set_pod_spec()
 
-        response = utils.create_pod_security_policy_with_api(
-            namespace=self._stored.namespace,
-        )
-        if not response:
-            self.framework.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_with_api(
+        utils.create_pod_security_policy_with_api(namespace=self._stored.namespace)
+        utils.create_namespaced_role_with_api(
             name='config-watcher',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
             resources=['configmaps'],
             verbs=['get', 'list', 'watch']
         )
-        if not response:
-            self.framework.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_binding_with_api(
+        utils.create_namespaced_role_binding_with_api(
             name='config-watcher',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
-            subject_name='controller'
+            subject_name='metallb-controller'
         )
-        if not response:
-            self.framework.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
 
-        self.framework.model.unit.status = ActiveStatus("Ready")
+        self.model.unit.status = ActiveStatus("Ready")
         self._stored.started = True
         self._stored.configured = True
 
     def on_remove(self, event):
         """Remove of artifacts created by the K8s API."""
-        self.framework.model.unit.status = MaintenanceStatus("Removing pod")
+        self.model.unit.status = MaintenanceStatus("Removing pod")
         logger.info("Removing artifacts that were created with the k8s API")
         utils.delete_pod_security_policy_with_api(name='controller')
         utils.delete_namespaced_role_binding_with_api(
@@ -103,7 +90,7 @@ class MetallbControllerCharm(CharmBase):
             name='config-watcher',
             namespace=self._stored.namespace
         )
-        self.framework.model.unit.status = ActiveStatus("Removing extra config done.")
+        self.model.unit.status = ActiveStatus("Removing extra config done.")
         self._stored.configured = False
         self._stored.started = False
 
@@ -121,7 +108,7 @@ class MetallbControllerCharm(CharmBase):
             self.model.unit.status = BlockedStatus("Error fetching container image.")
             return
 
-        self.framework.model.pod.set_spec(
+        self.model.pod.set_spec(
             {
                 'version': 3,
                 'serviceAccount': {

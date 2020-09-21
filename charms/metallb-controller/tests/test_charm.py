@@ -36,6 +36,7 @@ class TestCharm(unittest.TestCase):
     def test_config_changed(self):
         """Test update config upon change."""
         mock_pod_spec = self.harness.charm.set_pod_spec = Mock()
+        self.harness.charm._stored.started = True
         self.assertFalse(self.harness.charm._stored.configured)
         self.harness.update_config({"iprange": "192.168.1.88-192.168.1.89"})
         mock_pod_spec.assert_called_once()

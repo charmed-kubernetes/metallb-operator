@@ -78,6 +78,28 @@ applications:
 You would then deploy the bundle by calling this local file:
     juju deploy ./bundle.yaml
 
+## Note: Using RBAC
+
+If RBAC is enabled in the Kubernetes cluster, an extra deployment
+step is required. Before deploying metallb, apply the manifest 
+docs/rbac-permissions-controller.yaml. This manifest gives permissions
+to the controller pods to use the K8s API to create the necessary resources
+to make MetalLB work.
+
+    wget https://raw.githubusercontent.com/charmed-kubernetes/metallb-operator/master/docs/rbac-permissions-controller.yaml
+    microk8s.kubectl apply -f rbac-permissions-controller.yaml
+
+This manifest refers to the namespace where MetalLB will be deployed as 
+`metallb-system`. If you give another name to your namespace, edit the manifest
+before applying it.
+
+If you forgot to apply this manifest before deploying MetalLB, the units will
+fail in the start hook. But don't worry! You can apply the manifest afterwards,
+and the resolve the units that are in error to solve the problem.
+
+    juju resolve metallb-controller/0
+    juju resolve metallb-speaker/0
+
 ## Using MetalLB
 
 Once deployed, metallb will automatically assign ips from the range given to it

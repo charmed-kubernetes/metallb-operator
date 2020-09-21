@@ -1,7 +1,7 @@
 name: Test Suite for MetalLB
 
 on:
-  - pull_request_target
+  - pull_request
 
 jobs:
   lint:
@@ -10,7 +10,6 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@v2
-
     - name: Run Python code quality and lint action
       uses: ricardochaves/python-lint@v1.3.0
       with:
@@ -37,8 +36,7 @@ jobs:
       with:
         python-version: ${{ matrix.python }}
     - name: Install dependencies
-      run: |
-        pip install tox
+      run: pip install tox
     - name: Run unit tests with tox
       run: |
         cd charms/metallb-controller
@@ -58,8 +56,7 @@ jobs:
       with:
         python-version: ${{ matrix.python }}
     - name: Install dependencies
-      run: |
-        pip install tox
+      run: pip install tox
     - name: Run unit tests with tox
       run: |
         cd charms/metallb-speaker
@@ -67,80 +64,143 @@ jobs:
 
   func-test-metallb:
     runs-on: ubuntu-latest
-    name: Functional test MetalLB
+    name: Simple func test
     timeout-minutes: 10
-    needs: [lint, unit-test-metallb-controller, unit-test-metallb-speaker]
     steps:
     - name: Check out code
       uses: actions/checkout@v2
-
     - name: Install dependencies
       run: |
         sudo snap install juju --classic
         sudo snap install charmcraft --beta
         sudo snap install juju-wait --classic
-    
     - name: Create tmp dir for artifacts
       run: mkdir -p tmp
-
     - name: Build charms
       run: |
         charmcraft build --from charms/metallb-controller
         charmcraft build --from charms/metallb-speaker
-
     - name: Install MicroK8s with microk8s-action
-      uses: balchua/microk8s-actions@v0.1.2
+      uses: balchua/microk8s-actions@v0.1.3
       with:
         channel: '1.18/stable'
         rbac: 'false'
         dns: 'true'
         storage: 'true'
-
+    - name: Wait 15s for MicroK8s to be ready
+      run: sleep 15
     - name: Bootstrap MicroK8s with Juju
-      run: |
-        sudo juju bootstrap microk8s microk8s
-
+      run: sudo juju bootstrap microk8s microk8s
     - name: Deploy MetalLB
       run: |
         sudo juju add-model metallb-system
         sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image='metallb/controller:v0.9.3'
         sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image='metallb/speaker:v0.9.3'
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
-    
     - name: Wait for stable environment
-      run: |
-        sudo /snap/bin/juju-wait
-
+      run: sudo /snap/bin/juju-wait
     - name: Check for errors in juju status
       run: |  
         sudo juju status 2>&1 | tee tmp/juju-status-metallb.txt
-        if [[ $(juju status | grep 'error\|blocked') ]];
+        if [[ $(sudo juju status | grep 'error\|blocked') ]];
         then exit 1;
         else echo "No errors or blocked status detected.";
         fi
-
     - name: Check pods status
-      run: |
-        sudo kubectl get pods -n metallb-system 2>&1 | tee tmp/metallb-pods.txt
-
+      run: sudo kubectl get pods -n metallb-system 2>&1 | tee tmp/metallb-pods.txt
     - name: Deploy microbot
-      run: |
-        kubectl apply -f ./docs/example-microbot-lb.yaml
-      
+      run: kubectl apply -f ./docs/example-microbot-lb.yaml
     - name: Check availability of microbot service
-      run: |
-        kubectl get all 2>&1 | tee tmp/microbot-status.txt
-
+      run: kubectl get all 2>&1 | tee tmp/microbot-status.txt
     - name: Curl service on microbot external ip
       run: |
          if curl --fail --connect-timeout 10 `kubectl get service/microbot-lb \
          --no-headers | awk '{print$4}'`; then echo "curl successfull";
          else exit 1;
          fi      
-
     - name: Upload Artifacts
       if: ${{ always() }}
       uses: actions/upload-artifact@v2
       with:
         name: test-run-artifacts
+        path: tmp
+
+  func-test-rbac-metallb:
+    runs-on: ubuntu-latest
+    name: Func test with RBAC enabled
+    timeout-minutes: 10
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v2
+    - name: Install dependencies
+      run: |
+        sudo snap install juju --classic
+        sudo snap install charmcraft --beta
+        sudo snap install juju-wait --classic
+    - name: Create tmp dir for artifacts
+      run: mkdir -p tmp
+    - name: Build charms
+      run: |
+        charmcraft build --from charms/metallb-controller
+        charmcraft build --from charms/metallb-speaker
+    - name: Install MicroK8s with microk8s-action
+      uses: balchua/microk8s-actions@v0.1.3
+      with:
+        channel: '1.18/stable'
+        rbac: 'true'
+        dns: 'true'
+        storage: 'true'
+    - name: Wait 15s for MicroK8s to be ready
+      run: sleep 15
+    - name: Bootstrap MicroK8s with Juju
+      run: sudo juju bootstrap microk8s microk8s
+    - name: Deploy MetalLB
+      run: |
+        sudo juju add-model metallb-system
+        sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image='metallb/controller:v0.9.3'
+        sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image='metallb/speaker:v0.9.3'
+        sudo juju config metallb-controller iprange="10.1.240.241-10.1.240.242"
+    - name: Wait for stable environment
+      run: sudo /snap/bin/juju-wait
+    - name: Confirm failure without RBAC rules
+      run: |
+        sudo juju status 2>&1 | tee tmp/juju-status-metallb-1.txt
+        if [[ $(sudo juju status | grep 'error\|blocked') ]];
+        then echo "Deployment failed as expected.";
+        else exit 1;
+        fi
+    - name: Apply RBAC rules for operator pods
+      run: sudo microk8s.kubectl apply -f docs/rbac-permissions-controller.yaml
+    - name: Resolve units in error
+      run: |
+        if [[ $(sudo juju status metallb-controller | grep 'error') ]];
+        then sudo juju resolve metallb-controller/0; fi
+        if [[ $(sudo juju status metallb-speaker | grep 'error') ]];
+        then sudo juju resolve metallb-speaker/0; fi
+    - name: Wait for stable environment
+      run: sudo /snap/bin/juju-wait
+    - name: Check for errors in juju status
+      run: |  
+        sudo juju status 2>&1 | tee tmp/juju-status-metallb-2.txt
+        if [[ $(sudo juju status | grep 'error\|blocked') ]];
+        then exit 1;
+        else echo "No errors or blocked status detected.";
+        fi
+    - name: Check pods status
+      run: sudo kubectl get pods -n metallb-system 2>&1 | tee tmp/metallb-pods.txt
+    - name: Deploy microbot
+      run: kubectl apply -f ./docs/example-microbot-lb.yaml
+    - name: Check availability of microbot service
+      run: kubectl get all 2>&1 | tee tmp/microbot-status.txt
+    - name: Curl service on microbot external ip
+      run: |
+         if curl --fail --connect-timeout 10 `kubectl get service/microbot-lb \
+         --no-headers | awk '{print$4}'`; then echo "curl successfull";
+         else exit 1;
+         fi      
+    - name: Upload Artifacts
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: test-run-artifacts-rbac
         path: tmp

@@ -15,4 +15,4 @@ applications:
   metallb-speaker:
     charm: ../charms/metallb-speaker/build/metallb-speaker.charm
     resources:
-      metallb-controller-image: 'metallb/speaker:v0.9.3'
+      metallb-speaker-image: 'metallb/speaker:v0.9.3'

@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import string
+import sys
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
@@ -61,15 +62,12 @@ def create_pod_security_policy_with_api(namespace):
         api_instance = client.PolicyV1beta1Api(api_client)
         try:
             api_instance.create_pod_security_policy(body, pretty=True)
-            return True
         except ApiException as err:
             logging.exception("Exception when calling PolicyV1beta1Api"
                               "->create_pod_security_policy.")
-            if err.status == 409:
-                # ignoring 409 (AlreadyExists) errors
-                return True
-            else:
-                return False
+            if err.status != 409:
+                # Hook error except for 409 (AlreadyExists) errors
+                sys.exit(1)
 
 
 def delete_pod_security_policy_with_api(name):
@@ -82,7 +80,6 @@ def delete_pod_security_policy_with_api(name):
         api_instance = client.PolicyV1beta1Api(api_client)
         try:
             api_instance.delete_pod_security_policy(name=name, body=body, pretty=True)
-            return True
         except ApiException:
             logging.exception("Exception when calling PolicyV1beta1Api"
                               "->delete_pod_security_policy.")
@@ -111,15 +108,12 @@ def create_namespaced_role_with_api(name, namespace, labels, resources,
         api_instance = client.RbacAuthorizationV1Api(api_client)
         try:
             api_instance.create_namespaced_role(namespace, body, pretty=True)
-            return True
         except ApiException as err:
             logging.exception("Exception when calling RbacAuthorizationV1Api"
                               "->create_namespaced_role.")
-            if err.status == 409:
-                # ignoring 409 (AlreadyExists) errors
-                return True
-            else:
-                return False
+            if err.status != 409:
+                # Hook error except for 409 (AlreadyExists) errors
+                sys.exit(1)
 
 
 def delete_namespaced_role_with_api(name, namespace):
@@ -137,7 +131,6 @@ def delete_namespaced_role_with_api(name, namespace):
                 body=body,
                 pretty=True
             )
-            return True
         except ApiException:
             logging.exception("Exception when calling RbacAuthorizationV1Api"
                               "->delete_namespaced_role.")
@@ -172,15 +165,12 @@ def create_namespaced_role_binding_with_api(name, namespace, labels, subject_nam
         api_instance = client.RbacAuthorizationV1Api(api_client)
         try:
             api_instance.create_namespaced_role_binding(namespace, body, pretty=True)
-            return True
         except ApiException as err:
             logging.exception("Exception when calling RbacAuthorizationV1Api"
                               "->create_namespaced_role_binding.")
-            if err.status == 409:
-                # ignoring 409 (AlreadyExists) errors
-                return True
-            else:
-                return False
+            if err.status != 409:
+                # Hook error except for 409 (AlreadyExists) errors
+                sys.exit(1)
 
 
 def delete_namespaced_role_binding_with_api(name, namespace):
@@ -198,7 +188,6 @@ def delete_namespaced_role_binding_with_api(name, namespace):
                 body=body,
                 pretty=True
             )
-            return True
         except ApiException:
             logging.exception("Exception when calling RbacAuthorizationV1Api->"
                               "delete_namespaced_role_binding.")

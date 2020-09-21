@@ -6,6 +6,7 @@ import os
 from base64 import b64encode
 
 from oci_image import OCIImageResource, OCIImageResourceError
+
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -47,60 +48,33 @@ class MetallbSpeakerCharm(CharmBase):
         self.model.unit.status = MaintenanceStatus("Configuring pod")
         self.set_pod_spec()
 
-        response = utils.create_pod_security_policy_with_api(
-            namespace=self._stored.namespace,
-        )
-        if not response:
-            self.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_with_api(
+        utils.create_pod_security_policy_with_api(namespace=self._stored.namespace)
+        utils.create_namespaced_role_with_api(
             name='config-watcher',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
             resources=['configmaps'],
             verbs=['get', 'list', 'watch']
         )
-        if not response:
-            print(response)
-            self.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_with_api(
+        utils.create_namespaced_role_with_api(
             name='pod-lister',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
             resources=['pods'],
             verbs=['list']
         )
-        if not response:
-            self.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_binding_with_api(
+        utils.create_namespaced_role_binding_with_api(
             name='config-watcher',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
-            subject_name='speaker'
+            subject_name='metallb-speaker'
         )
-        if not response:
-            self.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
-
-        response = utils.create_namespaced_role_binding_with_api(
+        utils.create_namespaced_role_binding_with_api(
             name='pod-lister',
             namespace=self._stored.namespace,
             labels={'app': 'metallb'},
-            subject_name='speaker'
+            subject_name='metallb-speaker'
         )
-        if not response:
-            self.model.unit.status = \
-                BlockedStatus("An error occured during init. Please check the logs.")
-            return
 
         self.model.unit.status = ActiveStatus("Ready")
         self._stored.started = True
