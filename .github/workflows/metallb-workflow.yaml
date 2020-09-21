@@ -94,10 +94,7 @@ jobs:
         channel: '1.18/stable'
         rbac: 'false'
         dns: 'true'
-    
-    - name: Additional MicroK8s setup
-      run: |
-        sudo microk8s.enable storage
+        storage: 'true'
 
     - name: Bootstrap MicroK8s with Juju
       run: |
