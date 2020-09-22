@@ -197,7 +197,18 @@ jobs:
          if curl --fail --connect-timeout 10 `kubectl get service/microbot-lb \
          --no-headers | awk '{print$4}'`; then echo "curl successfull";
          else exit 1;
-         fi      
+         fi
+    - name: Debug failures
+      if: failure()
+      run: |
+        sudo microk8s.kubectl get all -A > tmp/microk8s-status-all.txt
+        sudo microk8s.kubectl describe deployments -A > tmp/microk8s-deployments.txt
+        sudo microk8s.kubectl describe replicasets -A > tmp/microk8s-replicasets.txt
+        sudo microk8s.kubectl describe daemonsets -A > tmp/microk8s-daemonsets.txt
+        for pod in `microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; 
+        do microk8s.kubectl logs $pod -n metallb-system > tmp/pod-$pod-logs.txt; done
+        sudo snap logs -n 300 microk8s > tmp/snap-log-microk8s.txt
+
     - name: Upload Artifacts
       if: ${{ always() }}
       uses: actions/upload-artifact@v2
