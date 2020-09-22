@@ -53,7 +53,7 @@ The charm is by default using a layer 2 configuration, and the ip range
 or use the juju config command line to edit it post-deployment. 
 
     juju add-model metallb-system
-    juju deploy cs:~charmed-kubernetes/metallb-bundle
+    juju deploy cs:~containers/metallb-bundle
 
 #### Post-deployment config
 
@@ -67,12 +67,12 @@ description: A charm bundle to deploy MetalLB in Kubernetes
 bundle: kubernetes
 applications:
   metallb-controller:
-    charm: cs:~charmed-kubernetes/metallb-controller
+    charm: cs:~containers/metallb-controller
     scale: 1
     options:
       iprange: "192.168.1.88-192.168.1.89" #Change this!
   metallb-speaker:
-    charm: cs:~charmed-kubernetes/metallb-speaker
+    charm: cs:~containers/metallb-speaker
     scale: 1
 ```
 You would then deploy the bundle by calling this local file:
@@ -82,12 +82,12 @@ You would then deploy the bundle by calling this local file:
 
 If RBAC is enabled in the Kubernetes cluster, an extra deployment
 step is required. Before deploying metallb, apply the manifest 
-docs/rbac-permissions-controller.yaml. This manifest gives permissions
+[docs/rbac-permissions-operators.yaml](https://raw.githubusercontent.com/containers/metallb-operator/master/docs/rbac-permissions-operators.yaml). This manifest gives permissions
 to the controller pods to use the K8s API to create the necessary resources
 to make MetalLB work.
 
-    wget https://raw.githubusercontent.com/charmed-kubernetes/metallb-operator/master/docs/rbac-permissions-controller.yaml
-    microk8s.kubectl apply -f rbac-permissions-controller.yaml
+    wget https://raw.githubusercontent.com/containers/metallb-operator/master/docs/rbac-permissions-operators.yaml
+    microk8s.kubectl apply -f rbac-permissions-operators.yaml
 
 This manifest refers to the namespace where MetalLB will be deployed as 
 `metallb-system`. If you give another name to your namespace, edit the manifest
@@ -113,7 +113,7 @@ To test the usage of metallb, a simple webapp can be deployed.
 An example manifest is included in this bundle, under `docs/example-microbot-lb.yaml`.
 You can use it by copying it locally:
 
-    wget https://raw.githubusercontent.com/charmed-kubernetes/metallb-operator/master/docs/example-microbot-lb.yaml
+    wget https://raw.githubusercontent.com/containers/metallb-operator/master/docs/example-microbot-lb.yaml
     microk8s.kubectl apply -f example-microbot-lb.yaml
     microk8s.kubectl get service microbot-lb
 
@@ -142,7 +142,7 @@ additional things in this model, then these things would be deleted as well):
 
 To edit this charm and run it locally to test changes, pull this repo:
 
-    git clone https://github.com/charmed-kubernetes/metallb-operator.git
+    git clone https://github.com/containers/metallb-operator.git
 
 If you plan on proposing edits to the operator, please fork the repo
 before pulling it.

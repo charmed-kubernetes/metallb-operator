@@ -21,3 +21,4 @@ resources:
   metallb-controller-image:
     type: oci-image
     description: upstream docker image for metallb-controller
+    upstream-source: 'metallb/controller:v0.9.3'

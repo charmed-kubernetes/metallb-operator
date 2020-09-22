@@ -74,6 +74,7 @@ jobs:
         sudo snap install juju --classic
         sudo snap install charmcraft --beta
         sudo snap install juju-wait --classic
+        sudo snap install yq
     - name: Create tmp dir for artifacts
       run: mkdir -p tmp
     - name: Build charms
@@ -93,9 +94,11 @@ jobs:
       run: sudo juju bootstrap microk8s microk8s
     - name: Deploy MetalLB
       run: |
+        upstream_controller_image=$(yq r charms/metallb-controller/metadata.yaml 'resources.metallb-controller-image.upstream-source')
+        upstream_speaker_image=$(yq r charms/metallb-speaker/metadata.yaml 'resources.metallb-speaker-image.upstream-source')
         sudo juju add-model metallb-system
-        sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image='metallb/controller:v0.9.3'
-        sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image='metallb/speaker:v0.9.3'
+        sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image=$upstream_controller_image
+        sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image=$upstream_speaker_image
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
     - name: Wait for stable environment
       run: sudo /snap/bin/juju-wait
@@ -117,7 +120,17 @@ jobs:
          if curl --fail --connect-timeout 10 `kubectl get service/microbot-lb \
          --no-headers | awk '{print$4}'`; then echo "curl successfull";
          else exit 1;
-         fi      
+         fi
+    - name: Debug failures
+      if: failure()
+      run: |
+        sudo microk8s.kubectl get all -A 2>&1 | tee tmp/microk8s-status-all.txt
+        sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
+        sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
+        sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
+        for pod in `sudo microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; 
+        do sudo microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
+        sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
     - name: Upload Artifacts
       if: ${{ always() }}
       uses: actions/upload-artifact@v2
@@ -137,6 +150,7 @@ jobs:
         sudo snap install juju --classic
         sudo snap install charmcraft --beta
         sudo snap install juju-wait --classic
+        sudo snap install yq
     - name: Create tmp dir for artifacts
       run: mkdir -p tmp
     - name: Build charms
@@ -156,9 +170,11 @@ jobs:
       run: sudo juju bootstrap microk8s microk8s
     - name: Deploy MetalLB
       run: |
+        upstream_controller_image=$(yq r charms/metallb-controller/metadata.yaml 'resources.metallb-controller-image.upstream-source')
+        upstream_speaker_image=$(yq r charms/metallb-speaker/metadata.yaml 'resources.metallb-speaker-image.upstream-source')
         sudo juju add-model metallb-system
-        sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image='metallb/controller:v0.9.3'
-        sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image='metallb/speaker:v0.9.3'
+        sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image=$upstream_controller_image
+        sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image=$upstream_speaker_image
         sudo juju config metallb-controller iprange="10.1.240.241-10.1.240.242"
     - name: Wait for stable environment
       run: sudo /snap/bin/juju-wait
@@ -170,15 +186,11 @@ jobs:
         else exit 1;
         fi
     - name: Apply RBAC rules for operator pods
-      run: sudo microk8s.kubectl apply -f docs/rbac-permissions-controller.yaml
-    - name: Resolve units in error
-      run: |
-        if [[ $(sudo juju status metallb-controller | grep 'error') ]];
-        then sudo juju resolve metallb-controller/0; fi
-        if [[ $(sudo juju status metallb-speaker | grep 'error') ]];
-        then sudo juju resolve metallb-speaker/0; fi
+      run: sudo microk8s.kubectl apply -f docs/rbac-permissions-operators.yaml
     - name: Wait for stable environment
-      run: sudo /snap/bin/juju-wait
+      run: |
+        sleep 2
+        sudo /snap/bin/juju-wait
     - name: Check for errors in juju status
       run: |  
         sudo juju status 2>&1 | tee tmp/juju-status-metallb-2.txt
@@ -197,7 +209,17 @@ jobs:
          if curl --fail --connect-timeout 10 `kubectl get service/microbot-lb \
          --no-headers | awk '{print$4}'`; then echo "curl successfull";
          else exit 1;
-         fi      
+         fi
+    - name: Debug failures
+      if: failure()
+      run: |
+        sudo microk8s.kubectl get all -A 2>&1 | tee tmp/microk8s-status-all.txt
+        sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
+        sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
+        sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
+        for pod in `microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; 
+        do microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
+        sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
     - name: Upload Artifacts
       if: ${{ always() }}
       uses: actions/upload-artifact@v2
