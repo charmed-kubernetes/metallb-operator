@@ -82,12 +82,12 @@ You would then deploy the bundle by calling this local file:
 
 If RBAC is enabled in the Kubernetes cluster, an extra deployment
 step is required. Before deploying metallb, apply the manifest 
-docs/rbac-permissions-controller.yaml. This manifest gives permissions
+docs/rbac-permissions-operators.yaml. This manifest gives permissions
 to the controller pods to use the K8s API to create the necessary resources
 to make MetalLB work.
 
-    wget https://raw.githubusercontent.com/charmed-kubernetes/metallb-operator/master/docs/rbac-permissions-controller.yaml
-    microk8s.kubectl apply -f rbac-permissions-controller.yaml
+    wget https://raw.githubusercontent.com/charmed-kubernetes/metallb-operator/master/docs/rbac-permissions-operators.yaml
+    microk8s.kubectl apply -f rbac-permissions-operators.yaml
 
 This manifest refers to the namespace where MetalLB will be deployed as 
 `metallb-system`. If you give another name to your namespace, edit the manifest

@@ -170,7 +170,7 @@ jobs:
         else exit 1;
         fi
     - name: Apply RBAC rules for operator pods
-      run: sudo microk8s.kubectl apply -f docs/rbac-permissions-controller.yaml
+      run: sudo microk8s.kubectl apply -f docs/rbac-permissions-operators.yaml
     - name: Resolve units in error
       run: |
         if [[ $(sudo juju status metallb-controller | grep 'error') ]];
