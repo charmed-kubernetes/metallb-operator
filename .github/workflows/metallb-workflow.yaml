@@ -125,8 +125,8 @@ jobs:
         sudo microk8s.kubectl describe deployments -A > tmp/microk8s-deployments.txt
         sudo microk8s.kubectl describe replicasets -A > tmp/microk8s-replicasets.txt
         sudo microk8s.kubectl describe daemonsets -A > tmp/microk8s-daemonsets.txt
-        for pod in `microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; 
-        do microk8s.kubectl logs $pod -n metallb-system > tmp/pod-$pod-logs.txt; done
+        for pod in `sudo microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; 
+        do sudo microk8s.kubectl logs $pod -n metallb-system > tmp/pod-$pod-logs.txt; done
         sudo snap logs -n 300 microk8s > tmp/snap-log-microk8s.txt
     - name: Upload Artifacts
       if: ${{ always() }}
@@ -181,12 +181,10 @@ jobs:
         fi
     - name: Apply RBAC rules for operator pods
       run: sudo microk8s.kubectl apply -f docs/rbac-permissions-operators.yaml
-    - name: Resolve units in error
+    - name: Wait for stable environment
       run: |
-        if [[ $(sudo juju status metallb-controller | grep 'error') ]];
-        then sudo juju resolve metallb-controller/0; fi
-        if [[ $(sudo juju status metallb-speaker | grep 'error') ]];
-        then sudo juju resolve metallb-speaker/0; fi
+        sleep 2
+        sudo /snap/bin/juju-wait
     - name: Wait for stable environment
       run: sudo /snap/bin/juju-wait
     - name: Check for errors in juju status
