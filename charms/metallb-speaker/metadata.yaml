@@ -20,3 +20,4 @@ resources:
   metallb-speaker-image:
     type: oci-image
     description: upstream docker image for metallb-controller
+    upstream-source: 'metallb/speaker:v0.9.3'
