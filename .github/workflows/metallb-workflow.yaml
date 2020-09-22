@@ -185,8 +185,6 @@ jobs:
       run: |
         sleep 2
         sudo /snap/bin/juju-wait
-    - name: Wait for stable environment
-      run: sudo /snap/bin/juju-wait
     - name: Check for errors in juju status
       run: |  
         sudo juju status 2>&1 | tee tmp/juju-status-metallb-2.txt
