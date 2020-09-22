@@ -1,0 +1,22 @@
+name: metallb-speaker
+description: |
+  This charm deploys MetalLB speaker in a Kubernetes model, which provides 
+  a software defined load balancer.
+summary: |
+  MetalLB offers a software network load balancing implementation that allows for
+  LoadBalancing services in Kubernetes. It is a young open-source project that could
+  be charmed to integrate it easily with the Canonical suite of projects. Upstream
+  documentation can be found here : https://metallb.universe.tf/.
+  The speaker is the deamonset that makes the services reachable. It must be deployed
+  with its counterpart, metallb-controller, which handles IP address assignments.
+series:
+  - kubernetes
+tags:
+  - kubernetes
+  - metallb
+deployment:
+  type: daemon
+resources:
+  metallb-speaker-image:
+    type: oci-image
+    description: upstream docker image for metallb-controller

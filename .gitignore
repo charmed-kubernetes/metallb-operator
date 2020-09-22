@@ -1,0 +1,10 @@
+.history
+build
+charms/metallb-controller/.build/
+charms/metallb-speaker/.build/
+.tox
+.coverage*
+.stestr/
+__pycache__
+coverage
+cover
