@@ -64,17 +64,17 @@ jobs:
 
   func-test-metallb:
     runs-on: ubuntu-latest
-    name: Simple func test
+    name: Functional test
     timeout-minutes: 10
     strategy:
       matrix:
-        rbac: [false, true]
+        rbac: ["without RBAC", "with RBAC"]
     steps:
     - name: Install MicroK8s with microk8s-action
       uses: balchua/microk8s-actions@v0.1.3
       with:
         channel: '1.18/stable'
-        rbac: 'false'
+        rbac: '${{ matrix.rbac == "with RBAC" }}'
         dns: 'true'
         storage: 'true'
     - name: Check out code
@@ -96,22 +96,14 @@ jobs:
         sudo juju add-model metallb-system
         sudo juju deploy ./bundle --overlay ./docs/local-overlay.yaml
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
-    - name: Wait for model to settle, allowing for errors
-      if: ${{ matrix.rbac }}
-      run: sudo /snap/bin/juju-wait -wv || true
-    - name: Confirm failure without RBAC rules
-      if: ${{ matrix.rbac }}
-      run: |
-        if [[ $(sudo juju status | tee tmp/juju-status-metallb-pre-rbac.txt | grep 'error\|blocked') ]]; then
-          echo "Deployment failed as expected."
-        else
-          exit 1
-        fi
+    - name: Wait for model to error without RBAC rules
+      if: ${{ matrix.rbac == "with RBAC" }}
+      run: ! sudo /snap/bin/juju-wait -wv
     - name: Apply RBAC rules for operator pods
-      if: ${{ matrix.rbac }}
+      if: ${{ matrix.rbac == "with RBAC" }}
       run: sudo microk8s.kubectl apply -f docs/rbac-permissions-operators.yaml
     - name: Resolve failures from RBAC
-      if: ${{ matrix.rbac }}
+      if: ${{ matrix.rbac == "with RBAC" }}
       run: |
         sudo juju resolved metallb-controller/0
         sudo juju resolved metallb-speaker/0
