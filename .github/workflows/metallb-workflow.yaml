@@ -66,7 +66,17 @@ jobs:
     runs-on: ubuntu-latest
     name: Simple func test
     timeout-minutes: 10
+    strategy:
+      matrix:
+        rbac: [false, true]
     steps:
+    - name: Install MicroK8s with microk8s-action
+      uses: balchua/microk8s-actions@v0.1.3
+      with:
+        channel: '1.18/stable'
+        rbac: 'false'
+        dns: 'true'
+        storage: 'true'
     - name: Check out code
       uses: actions/checkout@v2
     - name: Install dependencies
@@ -79,15 +89,6 @@ jobs:
     - name: Build charms
       run: |
         make charms
-    - name: Install MicroK8s with microk8s-action
-      uses: balchua/microk8s-actions@v0.1.3
-      with:
-        channel: '1.18/stable'
-        rbac: 'false'
-        dns: 'true'
-        storage: 'true'
-    - name: Wait 15s for MicroK8s to be ready
-      run: sleep 15
     - name: Bootstrap MicroK8s with Juju
       run: sudo juju bootstrap microk8s microk8s --config test-mode=true --config automatically-retry-hooks=false
     - name: Deploy MetalLB
@@ -95,29 +96,39 @@ jobs:
         sudo juju add-model metallb-system
         sudo juju deploy ./bundle --overlay ./docs/local-overlay.yaml
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
-    - name: Wait for stable environment
-      run: sudo /snap/bin/juju-wait -wv
-    - name: Check for errors in juju status
+    - name: Wait for model to settle, allowing for errors
+      if: ${{ matrix.rbac }}
+      run: sudo /snap/bin/juju-wait -wv || true
+    - name: Confirm failure without RBAC rules
+      if: ${{ matrix.rbac }}
       run: |
-        sudo juju status 2>&1 | tee tmp/juju-status-metallb.txt
-        if [[ $(sudo juju status | grep 'error\|blocked') ]];
-        then exit 1;
-        else echo "No errors or blocked status detected.";
+        if [[ $(sudo juju status | tee tmp/juju-status-metallb-pre-rbac.txt | grep 'error\|blocked') ]]; then
+          echo "Deployment failed as expected."
+        else
+          exit 1
         fi
-    - name: Check pods status
-      run: sudo kubectl get pods -n metallb-system 2>&1 | tee tmp/metallb-pods.txt
+    - name: Apply RBAC rules for operator pods
+      if: ${{ matrix.rbac }}
+      run: sudo microk8s.kubectl apply -f docs/rbac-permissions-operators.yaml
+    - name: Resolve failures from RBAC
+      if: ${{ matrix.rbac }}
+      run: |
+        sudo juju resolved metallb-controller/0
+        sudo juju resolved metallb-speaker/0
+    - name: Wait for model to settle
+      run: sudo /snap/bin/juju-wait -wv
     - name: Deploy microbot
       run: sudo kubectl apply -f ./docs/example-microbot-lb.yaml
     - name: Wait for microbot to be ready
-      run: timeout 2m sh -c 'while [[ "$(sudo kubectl get pod microbot -o jsonpath="{.status.phase}")" != "Running" ]]; do echo "Waiting for microbot..."; sleep 2; done'
-    - name: Curl service on microbot external ip
+      run: timeout 2m sh -c 'while true; do status="$(sudo kubectl get pod microbot-lb -o jsonpath="{.status.phase}")"; [ "$status" == "Running" ] && break; echo "Waiting for microbot ($status)..."; sleep 2; done'
+    - name: Curl microbot service LB
       run: |
          if curl --fail --connect-timeout 10 `sudo kubectl get service/microbot-lb \
          --no-headers | awk '{print$4}'`; then echo "curl successfull";
          else exit 1;
          fi
-    - name: Debug failures
-      if: failure()
+    - name: Collect debug artifacts
+      if: ${{ failure() }}
       run: |
         sudo microk8s.kubectl get all -A 2>&1 | tee tmp/microk8s-status-all.txt
         sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
@@ -128,93 +139,9 @@ jobs:
         sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
         sudo juju debug-log --replay --no-tail -i metallb-controller | tee tmp/unit-metallb-controller-0.log
         sudo juju debug-log --replay --no-tail -i metallb-speaker | tee tmp/unit-metallb-speaker-0.log
-    - name: Upload Artifacts
-      if: ${{ always() }}
+    - name: Upload debug artifacts
+      if: ${{ failure() }}
       uses: actions/upload-artifact@v2
       with:
         name: test-run-artifacts
-        path: tmp
-
-  func-test-rbac-metallb:
-    runs-on: ubuntu-latest
-    name: Func test with RBAC enabled
-    timeout-minutes: 10
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v2
-    - name: Install dependencies
-      run: |
-        script/bootstrap
-        sudo snap install juju --classic
-        sudo snap install juju-wait --classic
-    - name: Create tmp dir for artifacts
-      run: mkdir -p tmp
-    - name: Build charms
-      run: |
-        make charms
-    - name: Install MicroK8s with microk8s-action
-      uses: balchua/microk8s-actions@v0.1.3
-      with:
-        channel: '1.18/stable'
-        rbac: 'true'
-        dns: 'true'
-        storage: 'true'
-    - name: Wait 15s for MicroK8s to be ready
-      run: sleep 15
-    - name: Bootstrap MicroK8s with Juju
-      run: sudo juju bootstrap microk8s microk8s
-    - name: Deploy MetalLB
-      run: |
-        sudo juju add-model metallb-system
-        sudo juju deploy ./bundle --overlay ./docs/local-overlay.yaml
-        sudo juju config metallb-controller iprange="10.1.240.241-10.1.240.242"
-    - name: Wait for stable environment
-      run: sudo /snap/bin/juju-wait
-    - name: Confirm failure without RBAC rules
-      run: |
-        sudo juju status 2>&1 | tee tmp/juju-status-metallb-1.txt
-        if [[ $(sudo juju status | grep 'error\|blocked') ]];
-        then echo "Deployment failed as expected.";
-        else exit 1;
-        fi
-    - name: Apply RBAC rules for operator pods
-      run: sudo microk8s.kubectl apply -f docs/rbac-permissions-operators.yaml
-    - name: Wait for stable environment
-      run: |
-        sleep 2
-        sudo /snap/bin/juju-wait
-    - name: Check for errors in juju status
-      run: |
-        sudo juju status 2>&1 | tee tmp/juju-status-metallb-2.txt
-        if [[ $(sudo juju status | grep 'error\|blocked') ]];
-        then exit 1;
-        else echo "No errors or blocked status detected.";
-        fi
-    - name: Check pods status
-      run: sudo kubectl get pods -n metallb-system 2>&1 | tee tmp/metallb-pods.txt
-    - name: Deploy microbot
-      run: kubectl apply -f ./docs/example-microbot-lb.yaml
-    - name: Check availability of microbot service
-      run: kubectl get all 2>&1 | tee tmp/microbot-status.txt
-    - name: Curl service on microbot external ip
-      run: |
-         if curl --fail --connect-timeout 10 `kubectl get service/microbot-lb \
-         --no-headers | awk '{print$4}'`; then echo "curl successfull";
-         else exit 1;
-         fi
-    - name: Debug failures
-      if: failure()
-      run: |
-        sudo microk8s.kubectl get all -A 2>&1 | tee tmp/microk8s-status-all.txt
-        sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
-        sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
-        sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
-        for pod in `microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`;
-        do sudo microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
-        sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
-    - name: Upload Artifacts
-      if: ${{ always() }}
-      uses: actions/upload-artifact@v2
-      with:
-        name: test-run-artifacts-rbac
         path: tmp
