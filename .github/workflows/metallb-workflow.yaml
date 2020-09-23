@@ -98,7 +98,8 @@ jobs:
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
     - name: Wait for model to error without RBAC rules
       if: ${{ matrix.rbac == 'with RBAC' }}
-      run: ! sudo /snap/bin/juju-wait -wv
+      run: |
+        ! sudo /snap/bin/juju-wait -wv
     - name: Apply RBAC rules for operator pods
       if: ${{ matrix.rbac == 'with RBAC' }}
       run: sudo microk8s.kubectl apply -f docs/rbac-permissions-operators.yaml
