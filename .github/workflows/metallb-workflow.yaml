@@ -101,7 +101,7 @@ jobs:
     - name: Wait for stable environment
       run: sudo /snap/bin/juju-wait
     - name: Check for errors in juju status
-      run: |  
+      run: |
         sudo juju status 2>&1 | tee tmp/juju-status-metallb.txt
         if [[ $(sudo juju status | grep 'error\|blocked') ]];
         then exit 1;
@@ -126,7 +126,7 @@ jobs:
         sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
         sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
         sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
-        for pod in `sudo microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; 
+        for pod in `sudo microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`;
         do sudo microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
         sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
     - name: Upload Artifacts
@@ -145,16 +145,14 @@ jobs:
       uses: actions/checkout@v2
     - name: Install dependencies
       run: |
+        script/bootstrap
         sudo snap install juju --classic
-        sudo snap install charmcraft --beta
         sudo snap install juju-wait --classic
-        sudo snap install yq
     - name: Create tmp dir for artifacts
       run: mkdir -p tmp
     - name: Build charms
       run: |
-        charmcraft build --from charms/metallb-controller
-        charmcraft build --from charms/metallb-speaker
+        make charms
     - name: Install MicroK8s with microk8s-action
       uses: balchua/microk8s-actions@v0.1.3
       with:
@@ -190,7 +188,7 @@ jobs:
         sleep 2
         sudo /snap/bin/juju-wait
     - name: Check for errors in juju status
-      run: |  
+      run: |
         sudo juju status 2>&1 | tee tmp/juju-status-metallb-2.txt
         if [[ $(sudo juju status | grep 'error\|blocked') ]];
         then exit 1;
@@ -215,7 +213,7 @@ jobs:
         sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
         sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
         sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
-        for pod in `microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; 
+        for pod in `microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`;
         do microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
         sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
     - name: Upload Artifacts
