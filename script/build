@@ -4,6 +4,7 @@ set -x
 
 export PATH=/snap/bin:$PATH
 
-charmcraft build -f "charms/$CHARM"
 mkdir -p "$CHARM_BUILD_DIR/$CHARM"
-unzip "$CHARM.charm" -d "$CHARM_BUILD_DIR/$CHARM"
+CHARM_PATH="$(realpath "charms/$CHARM")"
+(cd "$CHARM_BUILD_DIR" && charmcraft build -f "$CHARM_PATH")
+unzip "$CHARM_BUILD_DIR/$CHARM.charm" -d "$CHARM_BUILD_DIR/$CHARM"

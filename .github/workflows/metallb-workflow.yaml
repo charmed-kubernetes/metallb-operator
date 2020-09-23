@@ -165,11 +165,8 @@ jobs:
       run: sudo juju bootstrap microk8s microk8s
     - name: Deploy MetalLB
       run: |
-        upstream_controller_image=$(yq r charms/metallb-controller/metadata.yaml 'resources.metallb-controller-image.upstream-source')
-        upstream_speaker_image=$(yq r charms/metallb-speaker/metadata.yaml 'resources.metallb-speaker-image.upstream-source')
         sudo juju add-model metallb-system
-        sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image=$upstream_controller_image
-        sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image=$upstream_speaker_image
+        sudo juju deploy ./bundle --overlay ./docs/local-overlay.yaml
         sudo juju config metallb-controller iprange="10.1.240.241-10.1.240.242"
     - name: Wait for stable environment
       run: sudo /snap/bin/juju-wait
