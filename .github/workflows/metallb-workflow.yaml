@@ -74,7 +74,7 @@ jobs:
       uses: balchua/microk8s-actions@v0.1.3
       with:
         channel: '1.18/stable'
-        rbac: '${{ matrix.rbac == "with RBAC" }}'
+        rbac: ${{ format('{}', matrix.rbac == "with RBAC") }}
         dns: 'true'
         storage: 'true'
     - name: Check out code
