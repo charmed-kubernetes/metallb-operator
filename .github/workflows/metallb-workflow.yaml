@@ -108,8 +108,8 @@ jobs:
       run: sudo kubectl get pods -n metallb-system 2>&1 | tee tmp/metallb-pods.txt
     - name: Deploy microbot
       run: sudo kubectl apply -f ./docs/example-microbot-lb.yaml
-    - name: Check availability of microbot service
-      run: sudo kubectl get all 2>&1 | tee tmp/microbot-status.txt
+    - name: Wait for microbot to be ready
+      run: timeout 2m sh -c 'while [[ "$(sudo kubectl get pod microbot -o jsonpath="{.status.phase}")" != "Running" ]]; do echo "Waiting for microbot..."; sleep 2; done'
     - name: Curl service on microbot external ip
       run: |
          if curl --fail --connect-timeout 10 `sudo kubectl get service/microbot-lb \
