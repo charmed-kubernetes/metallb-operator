@@ -89,17 +89,14 @@ jobs:
     - name: Wait 15s for MicroK8s to be ready
       run: sleep 15
     - name: Bootstrap MicroK8s with Juju
-      run: sudo juju bootstrap microk8s microk8s
+      run: sudo juju bootstrap microk8s microk8s --config test-mode=true --config automatically-retry-hooks=false
     - name: Deploy MetalLB
       run: |
-        upstream_controller_image=$(yq r charms/metallb-controller/metadata.yaml 'resources.metallb-controller-image.upstream-source')
-        upstream_speaker_image=$(yq r charms/metallb-speaker/metadata.yaml 'resources.metallb-speaker-image.upstream-source')
         sudo juju add-model metallb-system
-        sudo juju deploy ./metallb-controller.charm --resource metallb-controller-image=$upstream_controller_image
-        sudo juju deploy ./metallb-speaker.charm --resource metallb-speaker-image=$upstream_speaker_image
+        sudo juju deploy ./bundle --overlay ./docs/local-overlay.yaml
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
     - name: Wait for stable environment
-      run: sudo /snap/bin/juju-wait
+      run: sudo /snap/bin/juju-wait -wv
     - name: Check for errors in juju status
       run: |
         sudo juju status 2>&1 | tee tmp/juju-status-metallb.txt
@@ -110,12 +107,12 @@ jobs:
     - name: Check pods status
       run: sudo kubectl get pods -n metallb-system 2>&1 | tee tmp/metallb-pods.txt
     - name: Deploy microbot
-      run: kubectl apply -f ./docs/example-microbot-lb.yaml
+      run: sudo kubectl apply -f ./docs/example-microbot-lb.yaml
     - name: Check availability of microbot service
-      run: kubectl get all 2>&1 | tee tmp/microbot-status.txt
+      run: sudo kubectl get all 2>&1 | tee tmp/microbot-status.txt
     - name: Curl service on microbot external ip
       run: |
-         if curl --fail --connect-timeout 10 `kubectl get service/microbot-lb \
+         if curl --fail --connect-timeout 10 `sudo kubectl get service/microbot-lb \
          --no-headers | awk '{print$4}'`; then echo "curl successfull";
          else exit 1;
          fi
@@ -129,6 +126,8 @@ jobs:
         for pod in `sudo microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`;
         do sudo microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
         sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
+        sudo juju debug-log --replay --no-tail -i metallb-controller | tee tmp/unit-metallb-controller-0.log
+        sudo juju debug-log --replay --no-tail -i metallb-speaker | tee tmp/unit-metallb-speaker-0.log
     - name: Upload Artifacts
       if: ${{ always() }}
       uses: actions/upload-artifact@v2
@@ -214,7 +213,7 @@ jobs:
         sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
         sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
         for pod in `microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`;
-        do microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
+        do sudo microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
         sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
     - name: Upload Artifacts
       if: ${{ always() }}
