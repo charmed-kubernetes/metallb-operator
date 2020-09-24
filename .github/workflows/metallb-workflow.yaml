@@ -108,6 +108,7 @@ jobs:
       run: |
         sudo juju resolved metallb-controller/0
         sudo juju resolved metallb-speaker/0
+        timeout 1m bash -c 'while sudo juju status | grep -q "error"; do echo "Waiting for resolution..."; sleep 2; done'
     - name: Wait for model to settle
       run: sudo /snap/bin/juju-wait -wv
     - name: Deploy microbot
