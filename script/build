@@ -1,10 +1,17 @@
 #!/bin/bash
 
-set -x
+set -e
 
 export PATH=/snap/bin:$PATH
 
-mkdir -p "$CHARM_BUILD_DIR/$CHARM"
-CHARM_PATH="$(realpath "charms/$CHARM")"
-(cd "$CHARM_BUILD_DIR" && charmcraft build -f "$CHARM_PATH")
-unzip -q "$CHARM_BUILD_DIR/$CHARM.charm" -d "$CHARM_BUILD_DIR/$CHARM"
+mkdir -p "$CHARM_BUILD_DIR"
+
+CHARM_SRC="$(realpath "charms/$CHARM")"
+CHARM_DST="$CHARM_BUILD_DIR/$CHARM.charm"
+CHARM_DST_UNZIP="$CHARM_BUILD_DIR/$CHARM"
+
+(cd "$CHARM_BUILD_DIR" && charmcraft build -f "$CHARM_SRC" 2>&1) | sed -e "s,in '.*,in '$CHARM_DST',"
+
+# also provide unzipped version for `charm push`
+rm -rf "$CHARM_DST_UNZIP"
+unzip -q "$CHARM_DST" -d "$CHARM_DST_UNZIP"
