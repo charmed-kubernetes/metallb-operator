@@ -84,6 +84,7 @@ jobs:
         script/bootstrap
         sudo snap install juju --classic
         sudo snap install juju-wait --classic
+        sudo snap install yq
     - name: Create tmp dir for artifacts
       run: mkdir -p tmp
     - name: Build charms
@@ -93,6 +94,8 @@ jobs:
       run: sudo juju bootstrap microk8s microk8s --config test-mode=true --config automatically-retry-hooks=false
     - name: Deploy MetalLB
       run: |
+        upstream_controller_image=$(yq r charms/metallb-controller/metadata.yaml 'resources.metallb-controller-image.upstream-source')
+        upstream_speaker_image=$(yq r charms/metallb-speaker/metadata.yaml 'resources.metallb-speaker-image.upstream-source')
         sudo juju add-model metallb-system
         sudo juju deploy ./bundle --overlay ./docs/local-overlay.yaml
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
