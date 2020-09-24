@@ -73,7 +73,7 @@ jobs:
     - name: Install MicroK8s with microk8s-action
       uses: balchua/microk8s-actions@v0.1.3
       with:
-        channel: '1.18/stable'
+        channel: 'latest/stable'
         rbac: ${{ matrix.rbac == 'with RBAC' }}
         dns: true
         storage: true
@@ -90,7 +90,7 @@ jobs:
       run: |
         make charms
     - name: Bootstrap MicroK8s with Juju
-      run: sudo juju bootstrap microk8s microk8s --config test-mode=true --config automatically-retry-hooks=false
+      run: sudo juju bootstrap microk8s microk8s --config test-mode=true --model-default test-mode=true --model-default automatically-retry-hooks=false
     - name: Deploy MetalLB
       run: |
         sudo juju add-model metallb-system
@@ -106,32 +106,57 @@ jobs:
     - name: Resolve failures from RBAC
       if: ${{ matrix.rbac == 'with RBAC' }}
       run: |
-        sudo juju resolved metallb-controller/0
-        sudo juju resolved metallb-speaker/0
+        sudo juju resolved metallb-controller/0 || true
+        sudo juju resolved metallb-speaker/0 || true
+        timeout 1m bash -c 'while sudo juju status | grep -q "error"; do echo "Waiting for resolution..."; sleep 2; done'
     - name: Wait for model to settle
       run: sudo /snap/bin/juju-wait -wv
     - name: Deploy microbot
       run: sudo kubectl apply -f ./docs/example-microbot-lb.yaml
     - name: Wait for microbot to be ready
-      run: timeout 2m bash -c 'while true; do status="$(sudo kubectl get pod -lapp=microbot-lb -o jsonpath="{.items[*].status.phase}")"; [ "$status" == "Running Running Running" ] && break; echo "Waiting for microbot ($status)..."; sleep 2; done'
+      run: |
+        timeout 2m bash -c 'while true; do status="$(sudo kubectl get pod -lapp=microbot-lb -o jsonpath="{.items[*].status.phase}")"; [ "$status" == "Running Running Running" ] && break; echo "Waiting for microbot ($status)..."; sleep 2; done'
+        timeout 4m bash -c 'while true; do ingress="$(sudo kubectl get svc microbot-lb -o jsonpath="{.status.loadBalancer.ingress}")"; [ "$ingress" != "" ] && break; echo "Waiting for microbot LB ($ingress)..."; sleep 2; done'
     - name: Curl microbot service LB
       run: |
          if curl --fail --connect-timeout 10 `sudo kubectl get service/microbot-lb \
          --no-headers | awk '{print$4}'`; then echo "curl successfull";
          else exit 1;
          fi
-    - name: Collect debug artifacts
+    - name: Collect K8s Status
+      if: ${{ failure() }}
+      run: sudo microk8s.kubectl get all -A 2>&1 | tee tmp/microk8s-status-all.txt
+    - name: Collect Juju Status
+      if: ${{ failure() }}
+      run: sudo juju status 2>&1 | tee tmp/juju-status.txt
+    - name: Collect K8s Deployment details
+      if: ${{ failure() }}
+      run: sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
+    - name: Collect K8s ReplicaSet details
+      if: ${{ failure() }}
+      run: sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
+    - name: Collect K8s DaemonSet details
+      if: ${{ failure() }}
+      run: sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
+    - name: Collect K8s pod logs
       if: ${{ failure() }}
       run: |
-        sudo microk8s.kubectl get all -A 2>&1 | tee tmp/microk8s-status-all.txt
-        sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
-        sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
-        sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
-        for pod in `sudo microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`;
-        do sudo microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt; done
-        sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
-        sudo juju debug-log --replay --no-tail -i metallb-controller | tee tmp/unit-metallb-controller-0.log
-        sudo juju debug-log --replay --no-tail -i metallb-speaker | tee tmp/unit-metallb-speaker-0.log
+        for pod in `sudo microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; do
+          echo "Pod logs for: $pod"
+          echo "----------------------------------"
+          sudo microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt
+          echo
+          echo
+        done
+    - name: Collect microk8s snap logs
+      if: ${{ failure() }}
+      run: sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
+    - name: Collect Juju logs for metallb-controller
+      if: ${{ failure() }}
+      run: sudo juju debug-log --replay --no-tail -i metallb-controller | tee tmp/unit-metallb-controller-0.log
+    - name: Collect Juju logs for metallb-speaker
+      if: ${{ failure() }}
+      run: sudo juju debug-log --replay --no-tail -i metallb-speaker | tee tmp/unit-metallb-speaker-0.log
     - name: Upload debug artifacts
       if: ${{ failure() }}
       uses: actions/upload-artifact@v2
