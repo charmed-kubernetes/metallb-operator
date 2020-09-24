@@ -73,7 +73,7 @@ jobs:
     - name: Install MicroK8s with microk8s-action
       uses: balchua/microk8s-actions@v0.1.3
       with:
-        channel: '1.18/stable'
+        channel: 'latest/beta'
         rbac: ${{ matrix.rbac == 'with RBAC' }}
         dns: true
         storage: true
