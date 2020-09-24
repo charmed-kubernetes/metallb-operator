@@ -2,6 +2,12 @@
 
 export PATH="/snap/bin:$PATH"
 
+if [[ "$(snap whoami)" == "email: -" ]]; then
+    snap_sudo="sudo"
+else
+    snap_sudo=""
+fi
+
 echo "Verifying dependencies..."
 if ! (which docker && which make && which unzip) > /dev/null; then
     echo "Updating apt..."
@@ -21,9 +27,9 @@ if ! which unzip > /dev/null; then
 fi
 if ! which charmcraft > /dev/null; then
     echo "Installing charmcraft..."
-    sudo snap install charmcraft --beta
+    $snap_sudo snap install charmcraft --beta
 fi
 if ! which yq > /dev/null; then
     echo "Installing yq..."
-    sudo snap install yq
+    $snap_sudo snap install yq
 fi
