@@ -1,8 +1,29 @@
 #!/bin/bash
 
-set -x
+export PATH="/snap/bin:$PATH"
 
-sudo apt update
-sudo apt install -qyf docker.io make unzip
-sudo snap install charmcraft --beta
-sudo snap install yq
+echo "Verifying dependencies..."
+if ! (which docker && which make && which unzip) > /dev/null; then
+    echo "Updating apt..."
+    sudo apt update -yqq
+fi
+if ! which docker > /dev/null; then
+    echo "Installing docker..."
+    sudo apt install -qyf docker.io
+fi
+if ! which make > /dev/null; then
+    echo "Installing make..."
+    sudo apt make
+fi
+if ! which unzip > /dev/null; then
+    echo "Installing unzip..."
+    sudo apt unzip
+fi
+if ! which charmcraft > /dev/null; then
+    echo "Installing charmcraft..."
+    sudo snap install charmcraft --beta
+fi
+if ! which yq > /dev/null; then
+    echo "Installing yq..."
+    sudo snap install yq
+fi
