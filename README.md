@@ -53,7 +53,7 @@ The charm is by default using a layer 2 configuration, and the ip range
 or use the juju config command line to edit it post-deployment. 
 
     juju add-model metallb-system
-    juju deploy cs:~containers/metallb-bundle
+    juju deploy cs:~containers/metallb
 
 #### Post-deployment config
 
@@ -80,11 +80,11 @@ You would then deploy the bundle by calling this local file:
 
 ## Note: Using RBAC
 
-If RBAC is enabled in the Kubernetes cluster, an extra deployment
-step is required. Before deploying metallb, apply the manifest 
-[docs/rbac-permissions-operators.yaml](https://raw.githubusercontent.com/containers/metallb-operator/master/docs/rbac-permissions-operators.yaml). This manifest gives permissions
-to the controller pods to use the K8s API to create the necessary resources
-to make MetalLB work.
+If RBAC is enabled in the Kubernetes cluster, an extra deployment step is
+required. Before deploying metallb, apply the manifest
+[docs/rbac-permissions-operators.yaml](docs/rbac-permissions-operators.yaml).
+This manifest gives permissions to the operator pods to use the K8s API to
+create the necessary resources to make MetalLB work.
 
     wget https://raw.githubusercontent.com/containers/metallb-operator/master/docs/rbac-permissions-operators.yaml
     microk8s.kubectl apply -f rbac-permissions-operators.yaml
@@ -103,15 +103,16 @@ and the resolve the units that are in error to solve the problem.
 ## Using MetalLB
 
 Once deployed, metallb will automatically assign ips from the range given to it
-to services of type `Load Balancer`. When the services are deleted, the ips are
+to services of type `LoadBalancer`. When the services are deleted, the ips are
 available again. MetalLB will only use the ips allocated in the pool(s) given to
 it, and more than one pool can be assigned as well. 
 
 ## Example
 
-To test the usage of metallb, a simple webapp can be deployed. 
-An example manifest is included in this bundle, under `docs/example-microbot-lb.yaml`.
-You can use it by copying it locally:
+To test the usage of MetalLB, a simple webapp can be deployed.  An example
+manifest is included in this bundle, under
+[docs/example-microbot-lb.yaml](docs/example-microbot-lb.yaml).  You can use it
+by copying it locally:
 
     wget https://raw.githubusercontent.com/containers/metallb-operator/master/docs/example-microbot-lb.yaml
     microk8s.kubectl apply -f example-microbot-lb.yaml
@@ -120,7 +121,7 @@ You can use it by copying it locally:
 The EXTERNAL-IP is the ip assigned to the microbot service by the MetalLB controller. 
 If you reach this IP with a browser, you should see the image of a microbot. If you
 cannot, most probably the ip range is not correctly chosen. The ip range needs to
-be a reserved pool uniquely for metallb, to avoid ip conflicts. 
+be a reserved pool uniquely for MetalLB, to avoid IP conflicts. 
 
 To remove the example, simply delete the manifest with kubectl:
 
@@ -128,7 +129,7 @@ To remove the example, simply delete the manifest with kubectl:
 
 ## Removing MetalLB
 
-To remove metallb from the cluster, you can remove each application separately:
+To remove MetalLB from the cluster, you can remove each application separately:
 
     juju remove-application metallb-controller
     juju remove-application metallb-speaker
@@ -142,24 +143,19 @@ additional things in this model, then these things would be deleted as well):
 
 To edit this charm and run it locally to test changes, pull this repo:
 
-    git clone https://github.com/containers/metallb-operator.git
+    git clone https://github.com/containers/metallb-operator
 
 If you plan on proposing edits to the operator, please fork the repo
 before pulling it.
 
-To build the charm, simply use tox in the base folder:
+To build the charm, simply use make in the base folder:
 
-    cd metallb-bundle
-    tox -e build
+    cd metallb-operator
+    make charms
 
-Edit the bundle.yaml to point to local charms instead of the charmhub.
+Use the [local overlay](docs/local-overlay.yaml) with the bundle to use
+the locally built charms:
 
-    metallb-controller:
-        charm: ./charms/metallb-controller/.build/metallb-controller.charm
-    metallb-speaker:
-        charm: ./charms/metallb-speaker/.build/metallb-speaker.charm
-
-Make sure you have juju bootstrapped to some k8s cluster, and go for it:
-
-    juju add-model metallb-system
-    juju deploy .
+```sh
+juju deploy ./bundle --overlay ./docs/local-overlay.yaml
+```
