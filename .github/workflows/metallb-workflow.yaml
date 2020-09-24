@@ -90,7 +90,7 @@ jobs:
       run: |
         make charms
     - name: Bootstrap MicroK8s with Juju
-      run: sudo juju bootstrap microk8s microk8s --config test-mode=true --config automatically-retry-hooks=false
+      run: sudo juju bootstrap microk8s microk8s --config test-mode=true --model-default test-mode=true --model-default automatically-retry-hooks=false
     - name: Deploy MetalLB
       run: |
         sudo juju add-model metallb-system
@@ -106,8 +106,8 @@ jobs:
     - name: Resolve failures from RBAC
       if: ${{ matrix.rbac == 'with RBAC' }}
       run: |
-        sudo juju resolved metallb-controller/0
-        sudo juju resolved metallb-speaker/0
+        sudo juju resolved metallb-controller/0 || true
+        sudo juju resolved metallb-speaker/0 || true
         timeout 1m bash -c 'while sudo juju status | grep -q "error"; do echo "Waiting for resolution..."; sleep 2; done'
     - name: Wait for model to settle
       run: sudo /snap/bin/juju-wait -wv
