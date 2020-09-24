@@ -1,3 +1,26 @@
-This bundle contains the operator charms for running MetalLB within a
-Kubernetes cluster. Please see the [documentation](https://ubuntu.com/kubernetes/docs/metallb)
-for more information.
+## Overview
+
+MetalLB offers a software network load balancing implementation that allows for
+LoadBalancing services in Kubernetes.
+
+Upstream documentation for MetalLB can be found at <https://metallb.universe.tf/>
+and additional documentation about the the charms and using them with Kubernetes
+can be found at <https://ubuntu.com/kubernetes/docs/metallb>.
+
+## Deploying
+
+The following will deploy MetalLB with the default layer 2 configuration and IP
+range "192.168.1.240-192.168.1.250":
+
+```sh
+juju deploy cs:~containers/metallb
+```
+
+You will likely want to change the IP range to suit your environment, either
+via a [bundle overlay][] or a subsequent command:
+
+```sh
+juju config metallb-controller iprange=<IPRANGE>
+```
+
+[bundle overlay]: https://juju.is/docs/charm-bundles#heading--overlay-bundles
