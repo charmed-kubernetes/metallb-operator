@@ -114,7 +114,9 @@ jobs:
     - name: Deploy microbot
       run: sudo kubectl apply -f ./docs/example-microbot-lb.yaml
     - name: Wait for microbot to be ready
-      run: timeout 2m bash -c 'while true; do status="$(sudo kubectl get pod -lapp=microbot-lb -o jsonpath="{.items[*].status.phase}")"; [ "$status" == "Running Running Running" ] && break; echo "Waiting for microbot ($status)..."; sleep 2; done'
+      run: |
+        timeout 2m bash -c 'while true; do status="$(sudo kubectl get pod -lapp=microbot-lb -o jsonpath="{.items[*].status.phase}")"; [ "$status" == "Running Running Running" ] && break; echo "Waiting for microbot ($status)..."; sleep 2; done'
+        timeout 2m bash -c 'while true; do ingress="$(sudo kubectl get svc microbot-lb -o jsonpath="{.status.loadBalancer.ingress[*].ip}")"; [ "$ingress" != "" ] && break; echo "Waiting for microbot LB ($ingress)..."; sleep 2; done'
     - name: Curl microbot service LB
       run: |
          if curl --fail --connect-timeout 10 `sudo kubectl get service/microbot-lb \
