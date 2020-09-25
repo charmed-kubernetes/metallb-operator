@@ -1,10 +1,10 @@
 ## Overview
 
 MetalLB offers a software network load balancing implementation that allows for
-LoadBalancing services in Kubernetes.
+LoadBalancing services in Kubernetes. Upstream documentation for MetalLB can be
+found at <https://metallb.universe.tf/>
 
-Upstream documentation for MetalLB can be found at <https://metallb.universe.tf/>
-and additional documentation about the the charms and using them with Kubernetes
+The official documentation for these charms and how to use them with Kubernetes
 can be found at <https://ubuntu.com/kubernetes/docs/metallb>.
 
 ## Deploying
@@ -22,5 +22,8 @@ via a [bundle overlay][] or a subsequent command:
 ```sh
 juju config metallb-controller iprange=<IPRANGE>
 ```
+
+Please see the [documentation](https://ubuntu.com/kubernetes/docs/metallb) for
+more details.
 
 [bundle overlay]: https://juju.is/docs/charm-bundles#heading--overlay-bundles
