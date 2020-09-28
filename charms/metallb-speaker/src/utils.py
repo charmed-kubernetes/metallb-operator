@@ -12,6 +12,58 @@ from kubernetes.client.rest import ApiException
 logger = logging.getLogger(__name__)
 
 
+def create_k8s_objects(namespace):
+    """Create all supplementary K8s objects."""
+    create_pod_security_policy_with_api(namespace=namespace)
+    create_namespaced_role_with_api(
+        name='config-watcher',
+        namespace=namespace,
+        labels={'app': 'metallb'},
+        resources=['configmaps'],
+        verbs=['get', 'list', 'watch']
+    )
+    create_namespaced_role_with_api(
+        name='pod-lister',
+        namespace=namespace,
+        labels={'app': 'metallb'},
+        resources=['pods'],
+        verbs=['list']
+    )
+    create_namespaced_role_binding_with_api(
+        name='config-watcher',
+        namespace=namespace,
+        labels={'app': 'metallb'},
+        subject_name='metallb-speaker'
+    )
+    create_namespaced_role_binding_with_api(
+        name='pod-lister',
+        namespace=namespace,
+        labels={'app': 'metallb'},
+        subject_name='metallb-speaker'
+    )
+
+
+def remove_k8s_objects(namespace):
+    """Remove all supplementary K8s objects."""
+    delete_pod_security_policy_with_api(name='speaker')
+    delete_namespaced_role_binding_with_api(
+        name='config-watcher',
+        namespace=namespace
+    )
+    delete_namespaced_role_with_api(
+        name='config-watcher',
+        namespace=namespace
+    )
+    delete_namespaced_role_binding_with_api(
+        name='pod-lister',
+        namespace=namespace
+    )
+    delete_namespaced_role_with_api(
+        name='pod-lister',
+        namespace=namespace
+    )
+
+
 def create_pod_security_policy_with_api(namespace):
     """Create pod security policy."""
     # Using the API because of LP:1886694

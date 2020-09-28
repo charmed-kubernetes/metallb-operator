@@ -111,12 +111,17 @@ jobs:
         timeout 1m bash -c 'while sudo juju status | grep -q "error"; do echo "Waiting for resolution..."; sleep 2; done'
     - name: Wait for model to settle
       run: sudo /snap/bin/juju-wait -wv
+    - name: Wait for MetalLB workload pods to be ready
+      run: |
+        timeout 2m bash -c 'while true; do status="$(sudo kubectl get pod -n metallb-system -ljuju-app -o jsonpath="{.items[*].status.phase}")"; [ "$status" == "Running Running" ] && break; echo "Waiting for MetalLB ($status)..."; sleep 2; done'
     - name: Deploy microbot
       run: sudo kubectl apply -f ./docs/example-microbot-lb.yaml
     - name: Wait for microbot to be ready
       run: |
         timeout 2m bash -c 'while true; do status="$(sudo kubectl get pod -lapp=microbot-lb -o jsonpath="{.items[*].status.phase}")"; [ "$status" == "Running Running Running" ] && break; echo "Waiting for microbot ($status)..."; sleep 2; done'
-        timeout 4m bash -c 'while true; do ingress="$(sudo kubectl get svc microbot-lb -o jsonpath="{.status.loadBalancer.ingress}")"; [ "$ingress" != "" ] && break; echo "Waiting for microbot LB ($ingress)..."; sleep 2; done'
+    - name: Wait for microbot to get LB address
+      run: |
+        timeout 2m bash -c 'while true; do ingress="$(sudo kubectl get svc microbot-lb -o jsonpath="{.status.loadBalancer.ingress}")"; [ "$ingress" != "" ] && break; echo "Waiting for microbot LB ($ingress)..."; sleep 2; done'
     - name: Curl microbot service LB
       run: |
          if curl --fail --connect-timeout 10 `sudo kubectl get service/microbot-lb \

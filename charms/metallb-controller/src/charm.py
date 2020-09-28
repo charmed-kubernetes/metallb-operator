@@ -21,7 +21,7 @@ import utils
 logger = logging.getLogger(__name__)
 
 
-class MetallbControllerCharm(CharmBase):
+class MetalLBControllerCharm(CharmBase):
     """MetalLB Controller Charm."""
 
     _stored = StoredState()
@@ -29,84 +29,75 @@ class MetallbControllerCharm(CharmBase):
     def __init__(self, *args):
         """Charm initialization for events observation."""
         super().__init__(*args)
-        if not self.model.unit.is_leader():
-            self.model.unit.status = WaitingStatus("Waiting for leadership")
+        if not self.unit.is_leader():
+            self.unit.status = WaitingStatus("Waiting for leadership")
             return
         self.image = OCIImageResource(self, 'metallb-controller-image')
-        self.framework.observe(self.on.start, self.on_start)
+        self.framework.observe(self.on.install, self._on_start)
+        self.framework.observe(self.on.start, self._on_start)
+        self.framework.observe(self.on.upgrade_charm, self._on_upgrade)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self.framework.observe(self.on.remove, self.on_remove)
+        self.framework.observe(self.on.remove, self._on_remove)
         # -- initialize states --
+        self._stored.set_default(k8s_objects_created=False)
         self._stored.set_default(started=False)
-        self._stored.set_default(configured=False)
+        self._stored.set_default(iprange=self.model.config['iprange'])
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
 
-    def _on_config_changed(self, event):
-        if not self._stored.started:
+    def _on_start(self, event):
+        """Occurs upon install, start, upgrade, and possibly config changed."""
+        if self._stored.started:
             return
-        self._stored.configured = False
-        self.model.unit.status = MaintenanceStatus("Configuring pod")
-        logger.info('Reapplying the updated pod spec')
-        self.set_pod_spec()
-        self.model.unit.status = ActiveStatus("Ready")
-        self._stored.configured = True
+        self.unit.status = MaintenanceStatus("Fetching image information")
+        try:
+            image_info = self.image.fetch()
+        except OCIImageResourceError:
+            logging.exception('An error occured while fetching the image info')
+            self.unit.status = BlockedStatus("Error fetching image information")
+            return
 
-    def on_start(self, event):
-        """Occurs upon start or installation of the charm."""
-        logging.info('Setting the pod spec')
-        self.model.unit.status = MaintenanceStatus("Configuring pod")
-        self.set_pod_spec()
+        if not self._stored.k8s_objects_created:
+            self.unit.status = MaintenanceStatus("Creating supplementary "
+                                                 "Kubernetes objects")
+            utils.create_k8s_objects(self._stored.namespace)
+            self._stored.k8s_objects_created = True
 
-        utils.create_pod_security_policy_with_api(namespace=self._stored.namespace)
-        utils.create_namespaced_role_with_api(
-            name='config-watcher',
-            namespace=self._stored.namespace,
-            labels={'app': 'metallb'},
-            resources=['configmaps'],
-            verbs=['get', 'list', 'watch']
-        )
-        utils.create_namespaced_role_binding_with_api(
-            name='config-watcher',
-            namespace=self._stored.namespace,
-            labels={'app': 'metallb'},
-            subject_name='metallb-controller'
-        )
+        self.unit.status = MaintenanceStatus("Configuring pod")
+        self.set_pod_spec(image_info)
 
-        self.model.unit.status = ActiveStatus("Ready")
+        self.unit.status = ActiveStatus()
         self._stored.started = True
-        self._stored.configured = True
 
-    def on_remove(self, event):
+    def _on_upgrade(self, event):
+        """Occurs when new charm code or image info is available."""
+        self._stored.started = False
+        self._on_start(event)
+
+    def _on_config_changed(self, event):
+        if self.model.config['protocol'] != 'layer2':
+            self.unit.status = BlockedStatus('Invalid protocol; '
+                                             'only "layer2" currently supported')
+            return
+        if self.model.config['iprange'] != self._stored.iprange:
+            self._stored.started = False
+            self._stored.iprange = self.model.config['iprange']
+            self._on_start(event)
+
+    def _on_remove(self, event):
         """Remove of artifacts created by the K8s API."""
-        self.model.unit.status = MaintenanceStatus("Removing pod")
-        logger.info("Removing artifacts that were created with the k8s API")
-        utils.delete_pod_security_policy_with_api(name='controller')
-        utils.delete_namespaced_role_binding_with_api(
-            name='config-watcher',
-            namespace=self._stored.namespace
-        )
-        utils.delete_namespaced_role_with_api(
-            name='config-watcher',
-            namespace=self._stored.namespace
-        )
-        self.model.unit.status = ActiveStatus("Removing extra config done.")
-        self._stored.configured = False
+        self.unit.status = MaintenanceStatus("Removing supplementary "
+                                             "Kubernetes objects")
+        utils.remove_k8s_objects(self._stored.namespace)
+        self.unit.status = MaintenanceStatus("Removing pod")
         self._stored.started = False
 
-    def set_pod_spec(self):
+    def set_pod_spec(self, image_info):
         """Set pod spec."""
         iprange = self.model.config["iprange"].split(",")
         cm = "address-pools:\n- name: default\n  protocol: layer2\n  addresses:\n"
         for range in iprange:
             cm += "  - " + range + "\n"
-
-        try:
-            image_info = self.image.fetch()
-        except OCIImageResourceError:
-            logging.exception('An error occured while fetching the container image.')
-            self.model.unit.status = BlockedStatus("Error fetching container image.")
-            return
 
         self.model.pod.set_spec(
             {
@@ -186,4 +177,4 @@ class MetallbControllerCharm(CharmBase):
 
 
 if __name__ == "__main__":
-    main(MetallbControllerCharm)
+    main(MetalLBControllerCharm)
