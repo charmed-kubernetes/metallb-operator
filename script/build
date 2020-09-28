@@ -30,6 +30,7 @@ build_exit_code=${PIPESTATUS[0]}
 if [[ $build_exit_code != 0 ]]; then
     echo Build failed, full log:
     cat "$(ls -1t "$HOME"/snap/charmcraft/common/charmcraft-log-* | head -n1)"
+    cat "$HOME/.pip/pip.log"
     exit "$build_exit_code"
 fi
 
