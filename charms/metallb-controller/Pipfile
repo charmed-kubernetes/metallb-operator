@@ -1,0 +1,18 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+mock = "*"
+coverage = "*"
+stestr = "*"
+ipdb = "*"
+
+[packages]
+kubernetes = "*"
+ops = {git = "https://github.com/canonical/operator/"}
+oci-image = {git = "https://github.com/juju-solutions/resource-oci-image/"}
+
+[requires]
+python_version = "3.8"
