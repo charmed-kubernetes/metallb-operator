@@ -1,12 +1,11 @@
-# Metallb-Speaker Charm
+# MetalLB-Speaker Charm
 
-## Description
+## Overview
 
-The MetalLB charm offers a software network load balancing implementation that allows
-for LoadBalancing services in Kubernetes. 
-
-Upstream documentation can be found here : <https://metallb.universe.tf/>
+MetalLB offers a software network load balancing implementation that allows for
+LoadBalancing services in Kubernetes. Upstream documentation for MetalLB can be
+found at <https://metallb.universe.tf/>
 
 The metallb-speaker charm is meant to be used together with the metallb-controller charm.
-For information about deployment, usage, and more, please refer to the metallb-bundle
-documentation.
+The official documentation for these charms and how to use them with Kubernetes
+can be found at <https://ubuntu.com/kubernetes/docs/metallb>.

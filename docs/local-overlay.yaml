@@ -9,9 +9,5 @@ description: |
 applications:
   metallb-controller:
     charm: ../build/metallb-controller.charm
-    resources:
-      metallb-controller-image: 'metallb/controller:v0.9.3'
   metallb-speaker:
     charm: ../build/metallb-speaker.charm
-    resources:
-      metallb-speaker-image: 'metallb/speaker:v0.9.3'
