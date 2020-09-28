@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -xe
 
 export PATH=/snap/bin:$PATH
 
