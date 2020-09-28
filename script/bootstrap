@@ -33,9 +33,16 @@ if [[ "$HOME" != "/home/"* ]]; then
         echo "Installing python3-pip..."
         sudo apt install -qyf python3-pip
     fi
-    pip3 install --user charmcraft
+    if [[ -z "$VIRTUAL_ENV" ]]; then
+        echo "Installing charmcraft as user package..."
+        pip3 install --user charmcraft
+    else
+        echo "Installing charmcraft into venv..."
+        # Can just install directly into the active venv
+        pip3 install charmcraft
+    fi
 elif ! which charmcraft > /dev/null; then
-    echo "Installing charmcraft..."
+    echo "Installing charmcraft snap..."
     $snap_sudo snap install charmcraft --beta
 fi
 if ! which yq > /dev/null; then

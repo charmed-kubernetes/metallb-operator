@@ -10,13 +10,18 @@ CHARM_SRC="$(realpath "charms/$CHARM")"
 CHARM_DST="$CHARM_BUILD_DIR/$CHARM.charm"
 CHARM_DST_UNZIP="$CHARM_BUILD_DIR/$CHARM"
 
-if [[ -x $HOME/.local/bin/charmcraft ]]; then
-    # Use pip version of charmcraft if available due to
-    # issue with non-standard HOME causing problems in CI:
-    # https://forum.snapcraft.io/t/support-for-non-home-homedirs/11209
+# Use pip version of charmcraft if available due to
+# issue with non-standard HOME causing problems in CI:
+# https://forum.snapcraft.io/t/support-for-non-home-homedirs/11209
+if [[ -x "$VIRTUAL_ENV/bin/charmcraft" ]]; then
+    # Use charmcraft from the active venv
+    CHARMCRAFT="$VIRTUAL_ENV/bin/charmcraft"
+elif [[ -x $HOME/.local/bin/charmcraft ]]; then
+    # Use charmcraft from user pacakage
     CHARMCRAFT="$HOME/.local/bin/charmcraft"
 else
-    CHARMCRAFT="charmcraft"
+    # Use charmcraft snap
+    CHARMCRAFT="/snap/bin/charmcraft"
 fi
 
 (cd "$CHARM_BUILD_DIR" && "$CHARMCRAFT" build -f "$CHARM_SRC" 2>&1) | sed -e "s,in '.*,in '$CHARM_DST',"
