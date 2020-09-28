@@ -24,8 +24,14 @@ else
     CHARMCRAFT="/snap/bin/charmcraft"
 fi
 
+echo "Building $CHARM..."
 (cd "$CHARM_BUILD_DIR" && "$CHARMCRAFT" build -f "$CHARM_SRC" 2>&1) | sed -e "s,in '.*,in '$CHARM_DST',"
 
-# also provide unzipped version for `charm push`
-rm -rf "$CHARM_DST_UNZIP"
-unzip -q "$CHARM_DST" -d "$CHARM_DST_UNZIP"
+if [[ "$HOME" == *jenkins* ]]; then
+    # also provide unzipped version for `charm push` for Jenkins
+    echo "Unpacking $CHARM_DST to $CHARM_DST_UNZIP..."
+    rm -rf "$CHARM_DST_UNZIP"
+    mkdir -p "$CHARM_DST_UNZIP"
+    unzip -q "$CHARM_DST" -d "$CHARM_DST_UNZIP"
+    echo "Done."
+fi
