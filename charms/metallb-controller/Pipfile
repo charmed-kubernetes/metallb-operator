@@ -11,8 +11,8 @@ ipdb = "*"
 
 [packages]
 kubernetes = "*"
-ops = {git = "https://github.com/canonical/operator/"}
 oci-image = {git = "https://github.com/juju-solutions/resource-oci-image/"}
+ops = "*"
 
 [requires]
 python_version = "3.8"

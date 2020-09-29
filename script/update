@@ -6,5 +6,5 @@ if ! which pipenv > /dev/null; then
     sudo pip3 install pipenv
 fi
 
-(cd charms/metallb-controller && pipenv update)
-(cd charms/metallb-speaker && pipenv update)
+(cd charms/metallb-controller && pipenv update && pipenv lock -r > requirements.txt)
+(cd charms/metallb-speaker && pipenv update && pipenv lock -r > requirements.txt)
