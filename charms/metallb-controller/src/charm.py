@@ -89,7 +89,7 @@ class MetalLBControllerCharm(CharmBase):
                                              'only "layer2" currently supported')
             return
         current_config_hash = self._config_hash()
-        if current_config_hash != self._stored.iprange:
+        if current_config_hash != self._stored.config_hash:
             self._stored.started = False
             self._stored.config_hash = current_config_hash
             self._on_start(event)
