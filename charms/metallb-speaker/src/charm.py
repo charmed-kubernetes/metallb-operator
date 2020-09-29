@@ -36,6 +36,7 @@ class MetalLBSpeakerCharm(CharmBase):
         self.image = OCIImageResource(self, 'metallb-speaker-image')
         self.framework.observe(self.on.install, self._on_start)
         self.framework.observe(self.on.start, self._on_start)
+        self.framework.observe(self.on.leader_elected, self._on_start)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade)
         self.framework.observe(self.on.remove, self._on_remove)
         # -- initialize states --
@@ -47,7 +48,6 @@ class MetalLBSpeakerCharm(CharmBase):
             ).decode('utf-8'))
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
-        self._stored.set_default(container_image='metallb/speaker:v0.9.3')
 
     def _on_start(self, event):
         """Occurs upon install, start, or upgrade of the charm."""
@@ -85,6 +85,7 @@ class MetalLBSpeakerCharm(CharmBase):
         utils.remove_k8s_objects(self._stored.namespace)
         self.unit.status = MaintenanceStatus("Removing pod")
         self._stored.started = False
+        self._stored.k8s_objects_created = False
 
     def set_pod_spec(self, image_info):
         """Set pod spec."""

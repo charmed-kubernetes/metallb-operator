@@ -2,7 +2,9 @@
 """Controller component for the MetalLB bundle."""
 
 import logging
+import json
 import os
+from hashlib import md5
 
 from oci_image import OCIImageResource, OCIImageResourceError
 
@@ -35,15 +37,22 @@ class MetalLBControllerCharm(CharmBase):
         self.image = OCIImageResource(self, 'metallb-controller-image')
         self.framework.observe(self.on.install, self._on_start)
         self.framework.observe(self.on.start, self._on_start)
+        self.framework.observe(self.on.leader_elected, self._on_start)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
         # -- initialize states --
         self._stored.set_default(k8s_objects_created=False)
         self._stored.set_default(started=False)
-        self._stored.set_default(iprange=self.model.config['iprange'])
+        self._stored.set_default(config_hash=self._config_hash())
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
+
+    def _config_hash(self):
+        data = json.dumps({
+            'iprange': self.model.config['iprange'],
+        }, sort_keys=True)
+        return md5(data.encode('utf8')).hexdigest()
 
     def _on_start(self, event):
         """Occurs upon install, start, upgrade, and possibly config changed."""
@@ -79,9 +88,10 @@ class MetalLBControllerCharm(CharmBase):
             self.unit.status = BlockedStatus('Invalid protocol; '
                                              'only "layer2" currently supported')
             return
-        if self.model.config['iprange'] != self._stored.iprange:
+        current_config_hash = self._config_hash()
+        if current_config_hash != self._stored.iprange:
             self._stored.started = False
-            self._stored.iprange = self.model.config['iprange']
+            self._stored.config_hash = current_config_hash
             self._on_start(event)
 
     def _on_remove(self, event):
@@ -91,6 +101,7 @@ class MetalLBControllerCharm(CharmBase):
         utils.remove_k8s_objects(self._stored.namespace)
         self.unit.status = MaintenanceStatus("Removing pod")
         self._stored.started = False
+        self._stored.k8s_objects_created = False
 
     def set_pod_spec(self, image_info):
         """Set pod spec."""
