@@ -28,8 +28,6 @@ echo "Building $CHARM..."
 (cd "$CHARM_BUILD_DIR" && "$CHARMCRAFT" build -f "$CHARM_SRC" 2>&1) | sed -e "s,in '.*,in '$CHARM_DST',"
 build_exit_code=${PIPESTATUS[0]}
 if [[ $build_exit_code != 0 ]]; then
-    echo Build failed, full log:
-    cat "$(ls -1t "$HOME"/snap/charmcraft/common/charmcraft-log-* | head -n1)"
     exit "$build_exit_code"
 fi
 
