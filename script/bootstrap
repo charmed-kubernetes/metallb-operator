@@ -19,11 +19,11 @@ if ! which docker > /dev/null; then
 fi
 if ! which make > /dev/null; then
     echo "Installing make..."
-    sudo apt make
+    sudo apt install -qyf make
 fi
 if ! which unzip > /dev/null; then
     echo "Installing unzip..."
-    sudo apt unzip
+    sudo apt install -qyf unzip
 fi
 if [[ "$HOME" != "/home/"* ]]; then
     # If we're in an environment that has a non-/home HOME (like Jenkins),
