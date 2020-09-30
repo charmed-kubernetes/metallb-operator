@@ -65,7 +65,7 @@ jobs:
   func-test-metallb:
     runs-on: ubuntu-latest
     name: Functional test
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       matrix:
         rbac: ["without RBAC", "with RBAC"]
@@ -79,6 +79,16 @@ jobs:
         storage: true
     - name: Check out code
       uses: actions/checkout@v2
+    - name: Fix global gitconfig for confined snap
+      run: |
+        # GH automatically includes the git-lfs plugin and configures it in
+        # /etc/gitconfig.  However, the confinement of the charmcraft snap
+        # means that it can see that this file exists but cannot read it, even
+        # if the file permissions should allow it; this breaks git usage within
+        # the snap. To get around this, we move it from the global gitconfig to
+        # the user's .gitconfig file.
+        cat /etc/gitconfig >> $HOME/.gitconfig
+        sudo rm /etc/gitconfig
     - name: Install dependencies
       run: |
         script/bootstrap
@@ -88,7 +98,11 @@ jobs:
       run: mkdir -p tmp
     - name: Build charms
       run: |
-        make charms
+        if ! make charms; then
+          echo Build failed, full log:
+          cat "$(ls -1t "$HOME"/snap/charmcraft/common/charmcraft-log-* | head -n1)"
+          exit 1
+        fi
     - name: Bootstrap MicroK8s with Juju
       run: sudo juju bootstrap microk8s microk8s --config test-mode=true --model-default test-mode=true --model-default automatically-retry-hooks=false
     - name: Deploy MetalLB
@@ -102,7 +116,7 @@ jobs:
         ! sudo /snap/bin/juju-wait -wv
     - name: Apply RBAC rules for operator pods
       if: ${{ matrix.rbac == 'with RBAC' }}
-      run: sudo microk8s.kubectl apply -f docs/rbac-permissions-operators.yaml
+      run: sudo microk8s.kubectl apply -f ./docs/rbac-permissions-operators.yaml
     - name: Resolve failures from RBAC
       if: ${{ matrix.rbac == 'with RBAC' }}
       run: |
@@ -111,12 +125,17 @@ jobs:
         timeout 1m bash -c 'while sudo juju status | grep -q "error"; do echo "Waiting for resolution..."; sleep 2; done'
     - name: Wait for model to settle
       run: sudo /snap/bin/juju-wait -wv
+    - name: Wait for MetalLB workload pods to be ready
+      run: |
+        timeout 2m bash -c 'while true; do status="$(sudo kubectl get pod -n metallb-system -ljuju-app -o jsonpath="{.items[*].status.phase}")"; [ "$status" == "Running Running" ] && break; echo "Waiting for MetalLB ($status)..."; sleep 2; done'
     - name: Deploy microbot
       run: sudo kubectl apply -f ./docs/example-microbot-lb.yaml
     - name: Wait for microbot to be ready
       run: |
         timeout 2m bash -c 'while true; do status="$(sudo kubectl get pod -lapp=microbot-lb -o jsonpath="{.items[*].status.phase}")"; [ "$status" == "Running Running Running" ] && break; echo "Waiting for microbot ($status)..."; sleep 2; done'
-        timeout 4m bash -c 'while true; do ingress="$(sudo kubectl get svc microbot-lb -o jsonpath="{.status.loadBalancer.ingress}")"; [ "$ingress" != "" ] && break; echo "Waiting for microbot LB ($ingress)..."; sleep 2; done'
+    - name: Wait for microbot to get LB address
+      run: |
+        timeout 2m bash -c 'while true; do ingress="$(sudo kubectl get svc microbot-lb -o jsonpath="{.status.loadBalancer.ingress}")"; [ "$ingress" != "" ] && break; echo "Waiting for microbot LB ($ingress)..."; sleep 2; done'
     - name: Curl microbot service LB
       run: |
          if curl --fail --connect-timeout 10 `sudo kubectl get service/microbot-lb \

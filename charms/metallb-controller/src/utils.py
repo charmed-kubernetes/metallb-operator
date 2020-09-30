@@ -4,12 +4,42 @@ import logging
 import os
 import random
 import string
-import sys
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 logger = logging.getLogger(__name__)
+
+
+def create_k8s_objects(namespace):
+    """Create all supplementary K8s objects."""
+    create_pod_security_policy_with_api(namespace=namespace)
+    create_namespaced_role_with_api(
+        name='config-watcher',
+        namespace=namespace,
+        labels={'app': 'metallb'},
+        resources=['configmaps'],
+        verbs=['get', 'list', 'watch']
+    )
+    create_namespaced_role_binding_with_api(
+        name='config-watcher',
+        namespace=namespace,
+        labels={'app': 'metallb'},
+        subject_name='metallb-controller'
+    )
+
+
+def remove_k8s_objects(namespace):
+    """Remove all supplementary K8s objects."""
+    delete_pod_security_policy_with_api(name='controller')
+    delete_namespaced_role_binding_with_api(
+        name='config-watcher',
+        namespace=namespace
+    )
+    delete_namespaced_role_with_api(
+        name='config-watcher',
+        namespace=namespace
+    )
 
 
 def create_pod_security_policy_with_api(namespace):
@@ -57,11 +87,12 @@ def create_pod_security_policy_with_api(namespace):
         try:
             api_instance.create_pod_security_policy(body, pretty=True)
         except ApiException as err:
-            logging.exception("Exception when calling PolicyV1beta1Api"
-                              "->create_pod_security_policy.")
-            if err.status != 409:
-                # Hook error except for 409 (AlreadyExists) errors
-                sys.exit(1)
+            if err.status == 409:
+                # ignore "already exists" errors so that we can recover from
+                # partially failed setups
+                return
+            else:
+                raise
 
 
 def delete_pod_security_policy_with_api(name):
@@ -103,11 +134,12 @@ def create_namespaced_role_with_api(name, namespace, labels, resources, verbs,
         try:
             api_instance.create_namespaced_role(namespace, body, pretty=True)
         except ApiException as err:
-            logging.exception("Exception when calling RbacAuthorizationV1Api"
-                              "->create_namespaced_role.")
-            if err.status != 409:
-                # Hook error except for 409 (AlreadyExists) errors
-                sys.exit(1)
+            if err.status == 409:
+                # ignore "already exists" errors so that we can recover from
+                # partially failed setups
+                return
+            else:
+                raise
 
 
 def delete_namespaced_role_with_api(name, namespace):
@@ -160,11 +192,12 @@ def create_namespaced_role_binding_with_api(name, namespace, labels, subject_nam
         try:
             api_instance.create_namespaced_role_binding(namespace, body, pretty=True)
         except ApiException as err:
-            logging.exception("Exception when calling RbacAuthorizationV1Api"
-                              "->create_namespaced_role_binding.")
-            if err.status != 409:
-                # Hook error except for 409 (AlreadyExists) errors
-                sys.exit(1)
+            if err.status == 409:
+                # ignore "already exists" errors so that we can recover from
+                # partially failed setups
+                return
+            else:
+                raise
 
 
 def delete_namespaced_role_binding_with_api(name, namespace):

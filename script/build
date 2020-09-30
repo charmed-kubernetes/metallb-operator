@@ -26,6 +26,10 @@ fi
 
 echo "Building $CHARM..."
 (cd "$CHARM_BUILD_DIR" && "$CHARMCRAFT" build -f "$CHARM_SRC" 2>&1) | sed -e "s,in '.*,in '$CHARM_DST',"
+build_exit_code=${PIPESTATUS[0]}
+if [[ $build_exit_code != 0 ]]; then
+    exit "$build_exit_code"
+fi
 
 if [[ "$HOME" == *jenkins* ]]; then
     # also provide unzipped version for `charm push` for Jenkins

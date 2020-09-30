@@ -24,5 +24,8 @@ endif
 
 	@env CHARM=$(CHARM) NAMESPACE=$(NAMESPACE) CHANNEL=$(CHANNEL) CHARM_BUILD_DIR=$(CHARM_BUILD_DIR) bash script/upload
 
-.phony: charms charm upload setup-env
+update:
+	@bash script/update
+
+.phony: charms charm upload setup-env update
 all: charm

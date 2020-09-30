@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo "Verifying dependencies"
+if ! which pipenv > /dev/null; then
+    echo "Installing pipenv..."
+    sudo pip3 install pipenv
+fi
+
+(cd charms/metallb-controller && pipenv update && pipenv lock -r > requirements.txt)
+(cd charms/metallb-speaker && pipenv update && pipenv lock -r > requirements.txt)

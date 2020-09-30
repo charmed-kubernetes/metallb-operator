@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from charm import MetallbSpeakerCharm
+from charm import MetalLBSpeakerCharm
 
 from ops.testing import Harness
 
@@ -14,7 +14,7 @@ class TestCharm(unittest.TestCase):
     @patch.dict('charm.os.environ', {'JUJU_MODEL_NAME': 'unit-test-metallb'})
     def setUp(self):
         """Test setup."""
-        self.harness = Harness(MetallbSpeakerCharm)
+        self.harness = Harness(MetalLBSpeakerCharm)
         self.harness.set_leader(is_leader=True)
         self.harness.begin()
 
