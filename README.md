@@ -12,6 +12,10 @@ can be found at <https://ubuntu.com/kubernetes/docs/metallb>.
 This repo contains both of the MetalLB charms (under the [charms][] directory),
 as well as the bundle (under the [bundle][] directory).
 
+## Filing bugs
+
+Please file bugs at https://bugs.launchpad.net/operator-metallb.
+
 ## Building the charms
 
 The charms can be built locally using the `Makefile`:
