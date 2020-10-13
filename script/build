@@ -1,8 +1,5 @@
 #!/bin/bash
-
-set -e
-
-export PATH=/snap/bin:$PATH
+set -eu
 
 mkdir -p "$CHARM_BUILD_DIR"
 
