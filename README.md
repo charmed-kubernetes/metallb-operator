@@ -18,16 +18,12 @@ Please file bugs at https://bugs.launchpad.net/operator-metallb.
 
 ## Building the charms
 
-The charms can be built locally using the `Makefile`:
+The charms can be built locally using [charmcraft][]:
 
 ```bash
-make charms
+charmcraft build -f charms/metallb-controller
+charmcraft build -f charms/metallb-speaker
 ```
-
-This will first check for any missing dependencies, such as [charmcraft][], and
-install them if necessary (so you may receive a `sudo` prompt to perform the
-package installation). Then it will build the charms, creating a `build/`
-directory with the two `.charm` files in it.
 
 ## Testing locally
 
