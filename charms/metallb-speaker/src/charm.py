@@ -22,7 +22,7 @@ import utils
 logger = logging.getLogger(__name__)
 
 
-class MetallbSpeakerCharm(CharmBase):
+class MetalLBSpeakerCharm(CharmBase):
     """MetalLB Speaker Charm."""
 
     _stored = StoredState()
@@ -30,89 +30,65 @@ class MetallbSpeakerCharm(CharmBase):
     def __init__(self, *args):
         """Charm initialization for events observation."""
         super().__init__(*args)
-        if not self.model.unit.is_leader():
-            self.model.unit.status = WaitingStatus("Waiting for leadership")
+        if not self.unit.is_leader():
+            self.unit.status = WaitingStatus("Waiting for leadership")
             return
         self.image = OCIImageResource(self, 'metallb-speaker-image')
-        self.framework.observe(self.on.start, self.on_start)
-        self.framework.observe(self.on.remove, self.on_remove)
+        self.framework.observe(self.on.install, self._on_start)
+        self.framework.observe(self.on.start, self._on_start)
+        self.framework.observe(self.on.leader_elected, self._on_start)
+        self.framework.observe(self.on.upgrade_charm, self._on_upgrade)
+        self.framework.observe(self.on.remove, self._on_remove)
         # -- initialize states --
+        self._stored.set_default(k8s_objects_created=False)
         self._stored.set_default(started=False)
+        self._stored.set_default(
+            secret=b64encode(
+                utils._random_secret(128).encode('utf-8')
+            ).decode('utf-8'))
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
-        self._stored.set_default(container_image='metallb/speaker:v0.9.3')
 
-    def on_start(self, event):
-        """Occurs upon start or installation of the charm."""
-        logging.info('Setting the pod spec')
-        self.model.unit.status = MaintenanceStatus("Configuring pod")
-        self.set_pod_spec()
-
-        utils.create_pod_security_policy_with_api(namespace=self._stored.namespace)
-        utils.create_namespaced_role_with_api(
-            name='config-watcher',
-            namespace=self._stored.namespace,
-            labels={'app': 'metallb'},
-            resources=['configmaps'],
-            verbs=['get', 'list', 'watch']
-        )
-        utils.create_namespaced_role_with_api(
-            name='pod-lister',
-            namespace=self._stored.namespace,
-            labels={'app': 'metallb'},
-            resources=['pods'],
-            verbs=['list']
-        )
-        utils.create_namespaced_role_binding_with_api(
-            name='config-watcher',
-            namespace=self._stored.namespace,
-            labels={'app': 'metallb'},
-            subject_name='metallb-speaker'
-        )
-        utils.create_namespaced_role_binding_with_api(
-            name='pod-lister',
-            namespace=self._stored.namespace,
-            labels={'app': 'metallb'},
-            subject_name='metallb-speaker'
-        )
-
-        self.model.unit.status = ActiveStatus("Ready")
-        self._stored.started = True
-
-    def on_remove(self, event):
-        """Remove artifacts created by the K8s API."""
-        self.model.unit.status = MaintenanceStatus("Removing pod")
-        logger.info("Removing artifacts that were created with the k8s API")
-        utils.delete_pod_security_policy_with_api(name='speaker')
-        utils.delete_namespaced_role_binding_with_api(
-            name='config-watcher',
-            namespace=self._stored.namespace
-        )
-        utils.delete_namespaced_role_with_api(
-            name='config-watcher',
-            namespace=self._stored.namespace
-        )
-        utils.delete_namespaced_role_binding_with_api(
-            name='pod-lister',
-            namespace=self._stored.namespace
-        )
-        utils.delete_namespaced_role_with_api(
-            name='pod-lister',
-            namespace=self._stored.namespace
-        )
-        self.model.unit.status = ActiveStatus("Removing extra config done.")
-        self._stored.started = False
-
-    def set_pod_spec(self):
-        """Set pod spec."""
-        secret = utils._random_secret(128)
+    def _on_start(self, event):
+        """Occurs upon install, start, or upgrade of the charm."""
+        if self._stored.started:
+            return
+        self.unit.status = MaintenanceStatus("Fetching image info")
         try:
             image_info = self.image.fetch()
         except OCIImageResourceError:
-            logging.exception('An error occured while fetching the container image.')
-            self.model.unit.status = BlockedStatus("Error fetching container image.")
+            logging.exception('An error occured while fetching the image info')
+            self.unit.status = BlockedStatus("Error fetching image information")
             return
 
+        if not self._stored.k8s_objects_created:
+            self.unit.status = MaintenanceStatus("Creating supplementary "
+                                                 "Kubernetes objects")
+            utils.create_k8s_objects(self._stored.namespace)
+            self._stored.k8s_objects_created = True
+
+        self.unit.status = MaintenanceStatus("Configuring pod")
+        self.set_pod_spec(image_info)
+
+        self.unit.status = ActiveStatus()
+        self._stored.started = True
+
+    def _on_upgrade(self, event):
+        """Occurs when new charm code or image info is available."""
+        self._stored.started = False
+        self._on_start(event)
+
+    def _on_remove(self, event):
+        """Remove artifacts created by the K8s API."""
+        self.unit.status = MaintenanceStatus("Removing supplementary "
+                                             "Kubernetes objects")
+        utils.remove_k8s_objects(self._stored.namespace)
+        self.unit.status = MaintenanceStatus("Removing pod")
+        self._stored.started = False
+        self._stored.k8s_objects_created = False
+
+    def set_pod_spec(self, image_info):
+        """Set pod spec."""
         self.model.pod.set_spec(
             {
                 'version': 3,
@@ -207,8 +183,7 @@ class MetallbSpeakerCharm(CharmBase):
                         'name': 'memberlist',
                         'type': 'Opaque',
                         'data': {
-                            'secretkey':
-                                b64encode(secret.encode('utf-8')).decode('utf-8')
+                            'secretkey': self._stored.secret,
                         }
                     }]
                 },
@@ -223,4 +198,4 @@ class MetallbSpeakerCharm(CharmBase):
 
 
 if __name__ == "__main__":
-    main(MetallbSpeakerCharm)
+    main(MetalLBSpeakerCharm)
