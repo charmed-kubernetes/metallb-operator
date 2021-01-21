@@ -113,8 +113,6 @@ jobs:
       run: sudo juju bootstrap microk8s microk8s --config test-mode=true --model-default test-mode=true --model-default automatically-retry-hooks=false
     - name: Deploy MetalLB
       run: |
-        upstream_controller_image=$(yq r charms/metallb-controller/metadata.yaml 'resources.metallb-controller-image.upstream-source')
-        upstream_speaker_image=$(yq r charms/metallb-speaker/metadata.yaml 'resources.metallb-speaker-image.upstream-source')
         sudo juju add-model metallb-system
         sudo juju deploy ./bundle --overlay ./docs/local-overlay.yaml
         sudo juju config metallb-controller iprange="10.1.240.240-10.1.240.241"
