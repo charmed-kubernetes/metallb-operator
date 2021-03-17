@@ -28,6 +28,14 @@ subjects:
   name: metallb-speaker-operator
   # change namespace name according to your environment
   namespace: metallb-system
+- kind: ServiceAccount
+  name: metallb-controller
+  # change namespace name according to your environment
+  namespace: metallb-system
+- kind: ServiceAccount
+  name: metallb-speaker
+  # change namespace name according to your environment
+  namespace: metallb-system
 roleRef:
   kind: ClusterRole
   name: use-k8s-api
