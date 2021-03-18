@@ -179,6 +179,9 @@ class MetalLBSpeakerCharm(CharmBase):
                     },
                 }],
                 'kubernetesResources': {
+                    'pod': {
+                        'hostNetwork': True
+                    },
                     'secrets': [{
                         'name': 'memberlist',
                         'type': 'Opaque',
