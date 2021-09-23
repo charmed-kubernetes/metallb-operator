@@ -1,9 +1,29 @@
 import asyncio
 import logging
+import yaml
+from distutils.util import strtobool
+from pathlib import Path
+
 import pytest
 
 
 log = logging.getLogger(__name__)
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--rbac",
+        nargs="?",
+        type=strtobool,
+        default=False,
+        const=True,
+        help="Whether RBAC is enabled and should be tested",
+    )
+
+
+@pytest.fixture
+def rbac(request):
+    return request.config.getoption("--rbac")
 
 
 @pytest.fixture(scope="module")
@@ -15,32 +35,14 @@ class TestHelpers:
     def __init__(self, ops_test):
         self.ops_test = ops_test
 
-    async def deploy_charms(self):
-        # can't use the bundle because of:
-        # https://github.com/juju/python-libjuju/issues/472
-        charms = await self.ops_test.build_charms(
-            "charms/metallb-controller", "charms/metallb-speaker"
-        )
-        controller = await self.ops_test.model.deploy(
-            charms["metallb-controller"],
-            config={"iprange": "10.1.240.240-10.1.240.241"},
-            resources={"metallb-controller-image": "metallb/controller:v0.9.3"},
-        )
-        speaker = await self.ops_test.model.deploy(
-            charms["metallb-speaker"],
-            resources={"metallb-speaker-image": "metallb/speaker:v0.9.3"},
-        )
-        return controller, speaker
-
     async def kubectl(self, *cmd):
         rc, stdout, stderr = await self.ops_test.run(
-            "microk8s",
             "kubectl",
             "-n",
             self.ops_test.model_name,
             *cmd,
         )
-        assert rc == 0
+        assert rc == 0, f"Command 'kubectl {' '.join(cmd)}' failed:\n{stderr}"
         return stdout.strip()
 
     async def pods_ready(self, label, count):
@@ -92,6 +94,15 @@ class TestHelpers:
         await self.pods_ready(
             "app.kubernetes.io/name in (metallb-controller,metallb-speaker)", 2
         )
+
+    async def apply_rbac_operator_rules(self):
+        rbac_src_path = Path("./docs/rbac-permissions-operators.yaml")
+        rbac_dst_path = self.ops_test.tmp_path / "rbac.yaml"
+        rbac_rules = list(yaml.safe_load_all(rbac_src_path.read_text()))
+        for subject in rbac_rules[1]["subjects"]:
+            subject["namespace"] = self.ops_test.model_name
+        rbac_dst_path.write_text(yaml.safe_dump_all(rbac_rules))
+        await self.kubectl("apply", "-f", rbac_dst_path)
 
     async def deploy_microbot(self):
         await self.kubectl("apply", "-f", "./docs/example-microbot-lb.yaml")

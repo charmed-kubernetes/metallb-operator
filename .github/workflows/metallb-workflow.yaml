@@ -65,7 +65,10 @@ jobs:
   integration-test-metallb:
     runs-on: ubuntu-latest
     name: Integration test
-    timeout-minutes: 30
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        rbac: ["without RBAC", "with RBAC"]
     steps:
     - name: Check out code
       uses: actions/checkout@v2
@@ -73,8 +76,22 @@ jobs:
       uses: charmed-kubernetes/actions-operator@main
       with:
         provider: microk8s
+    # TODO: move to actions-operator?
+    - name: Alias microk8s.kubectl
+      run: snap alias microk8s.kubectl kubectl
+    # RBAC is enabled by default; TODO: ideally, this would be an option of actions-operator
+    - name: Disable RBAC
+      if: ${{ rbac == "without RBAC" }}
+      run: |
+        sg microk8s disable rbac
+        sg microk8s status --wait-ready
     - name: Run test
-      run: sg microk8s -c "tox -e integration"
+      env:
+        RBAC=${{ rbac == 'with RBAC' }}
+      run: sg microk8s -c "tox -e integration -- --rbac=$RBAC"
+    - name: Setup Debug Artifact Collection
+      if: ${{ failure() }}
+      run: mkdir tmp
     - name: Collect K8s Status
       if: ${{ failure() }}
       run: sudo microk8s.kubectl get all -A 2>&1 | tee tmp/microk8s-status-all.txt
