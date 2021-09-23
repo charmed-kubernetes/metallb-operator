@@ -81,13 +81,13 @@ jobs:
       run: snap alias microk8s.kubectl kubectl
     # RBAC is enabled by default; TODO: ideally, this would be an option of actions-operator
     - name: Disable RBAC
-      if: ${{ rbac == "without RBAC" }}
+      if: ${{ matrix.rbac == 'without RBAC' }}
       run: |
         sg microk8s disable rbac
         sg microk8s status --wait-ready
     - name: Run test
       env:
-        RBAC=${{ rbac == 'with RBAC' }}
+        RBAC=${{ matrix.rbac == 'with RBAC' }}
       run: sg microk8s -c "tox -e integration -- --rbac=$RBAC"
     - name: Setup Debug Artifact Collection
       if: ${{ failure() }}
