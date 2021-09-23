@@ -83,11 +83,11 @@ jobs:
     - name: Disable RBAC
       if: ${{ matrix.rbac == 'without RBAC' }}
       run: |
-        sg microk8s disable rbac
-        sg microk8s status --wait-ready
+        sg microk8s -c microk8s disable rbac
+        sg microk8s -c microk8s status --wait-ready
     - name: Run test
       env:
-        RBAC=${{ matrix.rbac == 'with RBAC' }}
+        RBAC: ${{ matrix.rbac == 'with RBAC' }}
       run: sg microk8s -c "tox -e integration -- --rbac=$RBAC"
     - name: Setup Debug Artifact Collection
       if: ${{ failure() }}
