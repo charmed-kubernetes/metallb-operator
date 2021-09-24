@@ -79,9 +79,11 @@ jobs:
     # TODO: move to actions-operator?
     - name: Alias microk8s.kubectl
       run: sudo snap alias microk8s.kubectl kubectl
-    # TODO: move to actions-operator
-    - name: Pre-init charmcraft's LXC remote
-      run: lxc remote add craft-com.ubuntu.cloud-buildd https://cloud-images.ubuntu.com/buildd/releases --protocol=simplestreams
+    # TODO: file upstream bug
+    - name: Pre-init charmcraft's LXC
+      run: |
+        lxc remote add craft-com.ubuntu.cloud-buildd https://cloud-images.ubuntu.com/buildd/releases --protocol=simplestreams
+        lxc --project charmcraft project create local:charmcraft
     # RBAC is enabled by default; TODO: ideally, this would be an option of actions-operator
     - name: Disable RBAC
       if: ${{ matrix.rbac == 'without RBAC' }}
