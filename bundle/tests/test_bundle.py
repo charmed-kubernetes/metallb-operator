@@ -1,4 +1,9 @@
+import logging
+
 import aiohttp
+
+
+log = logging.getLogger(__name__)
 
 
 async def test_build_and_deploy(ops_test, test_helpers, rbac):
@@ -22,10 +27,16 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
 
         def units_in_error(expect_error):
             def _predicate():
+                no = "no " if not expect_error else ""
                 if not (controller.units and speaker.units):
+                    s = "s" if not (controller.units or speaker.units) else ""
+                    log.info(f"Waiting for {no}error: missing unit{s}")
                     return False
                 controller_status = controller.units[0].workload_status
                 speaker_status = speaker.units[0].workload_status
+                log.info(
+                    f"Waiting for {no}error: {controller_status}, {speaker_status}"
+                )
                 if expect_error:
                     # only error is allowed
                     return {"error"} == {controller_status, speaker_status}
@@ -35,9 +46,13 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
 
             return _predicate
 
+        log.info("Testing RBAC failure and recovery")
         # confirm units go to error if RBAC rules not in place
-        await ops_test.model.block_until(units_in_error(True), timeout=5 * 60)
+        await ops_test.model.block_until(
+            units_in_error(True), timeout=5 * 60, wait_period=1
+        )
         # confirm adding RBAC rules enables units to resolve
+        log.info("Applying RBAC rules and retrying hooks")
         await test_helpers.apply_rbac_operator_rules()
         await controller.units[0].resolved(retry=True)
         await speaker.units[0].resolved(retry=True)
@@ -45,8 +60,11 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
         # likely are in maintenance or executing instead. If we went straight to
         # the wait_for_idle below, it would immediately fail due to the previous
         # error states since the hooks haven't started the retry yet.
-        await ops_test.model.block_until(units_in_error(False), timeout=5 * 60)
+        await ops_test.model.block_until(
+            units_in_error(False), timeout=5 * 60, wait_period=1
+        )
 
+    log.info("Testing LB with microbot")
     await ops_test.model.wait_for_idle(wait_for_active=True, raise_on_blocked=True)
     # test metallb
     await test_helpers.metallb_ready()
