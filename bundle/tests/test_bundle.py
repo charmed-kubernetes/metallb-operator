@@ -4,16 +4,15 @@ import aiohttp
 async def test_build_and_deploy(ops_test, test_helpers, rbac):
     # can't use the bundle because of:
     # https://github.com/juju/python-libjuju/issues/472
-    charms = await ops_test.build_charms(
-        "charms/metallb-controller", "charms/metallb-speaker"
-    )
+    controller_charm = await ops_test.build_charm("charms/metallb-controller")
+    speaker_charm = await ops_test.build_charm("charms/metallb-speaker")
     controller = await ops_test.model.deploy(
-        charms["metallb-controller"],
+        controller_charm,
         config={"iprange": "10.1.240.240-10.1.240.241"},
         resources={"metallb-controller-image": "metallb/controller:v0.9.3"},
     )
     speaker = await ops_test.model.deploy(
-        charms["metallb-speaker"],
+        speaker_charm,
         resources={"metallb-speaker-image": "metallb/speaker:v0.9.3"},
     )
 
