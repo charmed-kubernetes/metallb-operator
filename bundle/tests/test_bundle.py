@@ -7,6 +7,10 @@ log = logging.getLogger(__name__)
 
 
 async def test_build_and_deploy(ops_test, test_helpers, rbac):
+    rc, stdout, stderr = await ops_test.run(
+        "juju", "model-config", "-m", ops_test.model_full_name
+    )
+    log.info(stdout)
     # can't use the bundle because of:
     # https://github.com/juju/python-libjuju/issues/472
     # can't use ops_test.build_charms() because of:
@@ -48,7 +52,9 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
 
         log.info("Testing RBAC failure and recovery")
         # confirm units go to error if RBAC rules not in place
-        await ops_test.model.block_until(units_in_error(True), timeout=5 * 60)
+        await ops_test.model.block_until(
+            units_in_error(True), timeout=5 * 60, wait_period=1
+        )
         # confirm adding RBAC rules enables units to resolve
         log.info("Applying RBAC rules and retrying hooks")
         await test_helpers.apply_rbac_operator_rules()
@@ -58,7 +64,9 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
         # likely are in maintenance or executing instead. If we went straight to
         # the wait_for_idle below, it would immediately fail due to the previous
         # error states since the hooks haven't started the retry yet.
-        await ops_test.model.block_until(units_in_error(False), timeout=5 * 60)
+        await ops_test.model.block_until(
+            units_in_error(False), timeout=5 * 60, wait_period=1
+        )
 
     log.info("Testing LB with microbot")
     await ops_test.model.wait_for_idle(wait_for_active=True, raise_on_blocked=True)
@@ -69,3 +77,9 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
     timeout = aiohttp.ClientTimeout(connect=10)
     async with aiohttp.request("GET", f"http://{svc_address}", timeout=timeout) as resp:
         assert resp.status == 200
+
+    for unit in (controller, speaker):
+        rc, stdout, stderr = await ops_test.run(
+            "juju", "show-status-log", "-m", ops_test.model_full_name, unit.name
+        )
+        log.info(stdout)
