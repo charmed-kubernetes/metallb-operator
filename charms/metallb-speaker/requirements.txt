@@ -5,7 +5,7 @@ attrs==20.2.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2,
 cachetools==4.1.1; python_version ~= '3.5'
 certifi==2020.6.20
 chardet==3.0.4
-git+https://github.com/juju-solutions/resource-oci-image/@c5778285d332edf3d9a538f9d0c06154b7ec1b0b#egg=oci-image
+oci-image>=1.0.0,<2.0.0
 google-auth==1.22.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
 idna==2.10; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
 kubernetes==11.0.0
