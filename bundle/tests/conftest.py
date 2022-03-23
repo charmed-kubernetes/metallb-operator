@@ -102,7 +102,7 @@ class TestHelpers:
         for subject in rbac_rules[1]["subjects"]:
             subject["namespace"] = self.ops_test.model_name
         rbac_dst_path.write_text(yaml.safe_dump_all(rbac_rules))
-        await self.kubectl("apply", "-f", rbac_dst_path)
+        await self.kubectl("apply", "-f", str(rbac_dst_path))
 
     async def deploy_microbot(self):
         await self.kubectl("apply", "-f", "./docs/example-microbot-lb.yaml")
