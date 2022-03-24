@@ -76,9 +76,6 @@ jobs:
       uses: charmed-kubernetes/actions-operator@main
       with:
         provider: microk8s
-    # TODO: move to actions-operator?
-    - name: Alias microk8s.kubectl
-      run: sudo snap alias microk8s.kubectl kubectl
     # RBAC is enabled by default; TODO: ideally, this would be an option of actions-operator
     - name: Disable RBAC
       if: ${{ matrix.rbac == 'without RBAC' }}
