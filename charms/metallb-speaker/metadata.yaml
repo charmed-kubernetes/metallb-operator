@@ -2,6 +2,7 @@ name: metallb-speaker
 description: |
   This charm deploys MetalLB speaker in a Kubernetes model, which provides 
   a software defined load balancer.
+docs: https://discourse.charmhub.io/t/metallb-controller-speaker/6320
 summary: |
   MetalLB offers a software network load balancing implementation that allows for
   LoadBalancing services in Kubernetes. It is a young open-source project that could
