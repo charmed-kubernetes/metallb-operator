@@ -11,14 +11,14 @@ from ops.testing import Harness
 class TestCharm(unittest.TestCase):
     """MetalLB Controller Charm Unit Tests."""
 
-    @patch.dict('charm.os.environ', {'JUJU_MODEL_NAME': 'unit-test-metallb'})
+    @patch.dict("charm.os.environ", {"JUJU_MODEL_NAME": "unit-test-metallb"})
     def setUp(self):
         """Test setup."""
         self.harness = Harness(MetalLBControllerCharm)
         self.harness.set_leader(is_leader=True)
         self.harness.begin()
 
-    @patch.dict('charm.os.environ', {'JUJU_MODEL_NAME': 'unit-test-metallb'})
+    @patch.dict("charm.os.environ", {"JUJU_MODEL_NAME": "unit-test-metallb"})
     @patch("utils.create_namespaced_role_binding_with_api")
     @patch("utils.create_namespaced_role_with_api")
     @patch("utils.create_pod_security_policy_with_api")

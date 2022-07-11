@@ -10,12 +10,7 @@ from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import (
-    ActiveStatus,
-    BlockedStatus,
-    MaintenanceStatus,
-    WaitingStatus,
-)
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
 import utils
 
@@ -33,7 +28,7 @@ class MetalLBSpeakerCharm(CharmBase):
         if not self.unit.is_leader():
             self.unit.status = WaitingStatus("Waiting for leadership")
             return
-        self.image = OCIImageResource(self, 'metallb-speaker-image')
+        self.image = OCIImageResource(self, "metallb-speaker-image")
         self.framework.observe(self.on.install, self._on_start)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.leader_elected, self._on_start)
@@ -43,9 +38,8 @@ class MetalLBSpeakerCharm(CharmBase):
         self._stored.set_default(k8s_objects_created=False)
         self._stored.set_default(started=False)
         self._stored.set_default(
-            secret=b64encode(
-                utils._random_secret(128).encode('utf-8')
-            ).decode('utf-8'))
+            secret=b64encode(utils._random_secret(128).encode("utf-8")).decode("utf-8")
+        )
         # -- base values --
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
 
@@ -57,13 +51,14 @@ class MetalLBSpeakerCharm(CharmBase):
         try:
             image_info = self.image.fetch()
         except OCIImageResourceError:
-            logging.exception('An error occured while fetching the image info')
+            logging.exception("An error occured while fetching the image info")
             self.unit.status = BlockedStatus("Error fetching image information")
             return
 
         if not self._stored.k8s_objects_created:
-            self.unit.status = MaintenanceStatus("Creating supplementary "
-                                                 "Kubernetes objects")
+            self.unit.status = MaintenanceStatus(
+                "Creating supplementary " "Kubernetes objects"
+            )
             utils.create_k8s_objects(self._stored.namespace)
             self._stored.k8s_objects_created = True
 
@@ -80,8 +75,9 @@ class MetalLBSpeakerCharm(CharmBase):
 
     def _on_remove(self, event):
         """Remove artifacts created by the K8s API."""
-        self.unit.status = MaintenanceStatus("Removing supplementary "
-                                             "Kubernetes objects")
+        self.unit.status = MaintenanceStatus(
+            "Removing supplementary " "Kubernetes objects"
+        )
         utils.remove_k8s_objects(self._stored.namespace)
         self.unit.status = MaintenanceStatus("Removing pod")
         self._stored.started = False
@@ -91,109 +87,103 @@ class MetalLBSpeakerCharm(CharmBase):
         """Set pod spec."""
         self.model.pod.set_spec(
             {
-                'version': 3,
-                'serviceAccount': {
-                    'roles': [{
-                        'global': True,
-                        'rules': [
+                "version": 3,
+                "serviceAccount": {
+                    "roles": [
+                        {
+                            "global": True,
+                            "rules": [
+                                {
+                                    "apiGroups": [""],
+                                    "resources": ["services", "endpoints", "nodes"],
+                                    "verbs": ["get", "list", "watch"],
+                                },
+                                {
+                                    "apiGroups": [""],
+                                    "resources": ["events"],
+                                    "verbs": ["create", "patch"],
+                                },
+                                {
+                                    "apiGroups": ["policy"],
+                                    "resourceNames": ["speaker"],
+                                    "resources": ["podsecuritypolicies"],
+                                    "verbs": ["use"],
+                                },
+                            ],
+                        }
+                    ],
+                },
+                "containers": [
+                    {
+                        "name": "speaker",
+                        "imageDetails": image_info,
+                        "imagePullPolicy": "Always",
+                        "ports": [
                             {
-                                'apiGroups': [''],
-                                'resources': ['services', 'endpoints', 'nodes'],
-                                'verbs': ['get', 'list', 'watch'],
-                            },
-                            {
-                                'apiGroups': [''],
-                                'resources': ['events'],
-                                'verbs': ['create', 'patch'],
-                            },
-                            {
-                                'apiGroups': ['policy'],
-                                'resourceNames': ['speaker'],
-                                'resources': ['podsecuritypolicies'],
-                                'verbs': ['use'],
-                            },
+                                "containerPort": 7472,
+                                "protocol": "TCP",
+                                "name": "monitoring",
+                            }
                         ],
-                    }],
-                },
-                'containers': [{
-                    'name': 'speaker',
-                    'imageDetails': image_info,
-                    'imagePullPolicy': 'Always',
-                    'ports': [{
-                        'containerPort': 7472,
-                        'protocol': 'TCP',
-                        'name': 'monitoring'
-                    }],
-                    'envConfig': {
-                        'METALLB_NODE_NAME': {
-                            'field': {
-                                'path': 'spec.nodeName',
-                                'api-version': 'v1'
-                            }
-                        },
-                        'METALLB_HOST': {
-                            'field': {
-                                'path': 'status.hostIP',
-                                'api-version': 'v1'
-                            }
-                        },
-                        'METALLB_ML_BIND_ADDR': {
-                            'field': {
-                                'path': 'status.podIP',
-                                'api-version': 'v1'
-                            }
-                        },
-                        'METALLB_ML_LABELS': "app=metallb,component=speaker",
-                        'METALLB_ML_NAMESPACE': {
-                            'field': {
-                                'path': 'metadata.namespace',
-                                'api-version': 'v1'
-                            }
-                        },
-                        'METALLB_ML_SECRET_KEY': {
-                            'secret': {
-                                'name': 'memberlist',
-                                'key': 'secretkey'
-                            }
-                        }
-                    },
-                    # TODO: add constraint fields once it exists in pod_spec
-                    # bug : https://bugs.launchpad.net/juju/+bug/1893123
-                    # 'resources': {
-                    #     'limits': {
-                    #         'cpu': '100m',
-                    #         'memory': '100Mi',
-                    #     }
-                    # },
-                    'kubernetes': {
-                        'securityContext': {
-                            'allowPrivilegeEscalation': False,
-                            'readOnlyRootFilesystem': True,
-                            'capabilities': {
-                                'add': ['NET_ADMIN', 'NET_RAW', 'SYS_ADMIN'],
-                                'drop': ['ALL']
+                        "envConfig": {
+                            "METALLB_NODE_NAME": {
+                                "field": {"path": "spec.nodeName", "api-version": "v1"}
+                            },
+                            "METALLB_HOST": {
+                                "field": {"path": "status.hostIP", "api-version": "v1"}
+                            },
+                            "METALLB_ML_BIND_ADDR": {
+                                "field": {"path": "status.podIP", "api-version": "v1"}
+                            },
+                            "METALLB_ML_LABELS": "app=metallb,component=speaker",
+                            "METALLB_ML_NAMESPACE": {
+                                "field": {
+                                    "path": "metadata.namespace",
+                                    "api-version": "v1",
+                                }
+                            },
+                            "METALLB_ML_SECRET_KEY": {
+                                "secret": {"name": "memberlist", "key": "secretkey"}
                             },
                         },
-                        # fields do not exist in pod_spec
-                        # 'TerminationGracePeriodSeconds': 2,
-                    },
-                }],
-                'kubernetesResources': {
-                    'pod': {
-                        'hostNetwork': True
-                    },
-                    'secrets': [{
-                        'name': 'memberlist',
-                        'type': 'Opaque',
-                        'data': {
-                            'secretkey': self._stored.secret,
+                        # TODO: add constraint fields once it exists in pod_spec
+                        # bug : https://bugs.launchpad.net/juju/+bug/1893123
+                        # 'resources': {
+                        #     'limits': {
+                        #         'cpu': '100m',
+                        #         'memory': '100Mi',
+                        #     }
+                        # },
+                        "kubernetes": {
+                            "securityContext": {
+                                "allowPrivilegeEscalation": False,
+                                "readOnlyRootFilesystem": True,
+                                "capabilities": {
+                                    "add": ["NET_ADMIN", "NET_RAW", "SYS_ADMIN"],
+                                    "drop": ["ALL"],
+                                },
+                            },
+                            # fields do not exist in pod_spec
+                            # 'TerminationGracePeriodSeconds': 2,
+                        },
+                    }
+                ],
+                "kubernetesResources": {
+                    "pod": {"hostNetwork": True},
+                    "secrets": [
+                        {
+                            "name": "memberlist",
+                            "type": "Opaque",
+                            "data": {
+                                "secretkey": self._stored.secret,
+                            },
                         }
-                    }]
+                    ],
                 },
-                'service': {
-                    'annotations': {
-                        'prometheus.io/port': '7472',
-                        'prometheus.io/scrape': 'true'
+                "service": {
+                    "annotations": {
+                        "prometheus.io/port": "7472",
+                        "prometheus.io/scrape": "true",
                     }
                 },
             },
