@@ -16,7 +16,7 @@ jobs:
     needs:
       - call-inclusive-naming-check
     with:
-      python: "['3.7', '3.8', '3.9', '3.10']"
+      python: "['3.8', '3.9', '3.10']"
 
   integration-test-metallb:
     runs-on: ubuntu-latest
