@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Controller component for the MetalLB bundle."""
 
-import logging
 import json
+import logging
 import os
 from hashlib import md5
 
@@ -11,12 +11,7 @@ from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import (
-    ActiveStatus,
-    BlockedStatus,
-    MaintenanceStatus,
-    WaitingStatus,
-)
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
 import utils
 
@@ -34,7 +29,7 @@ class MetalLBControllerCharm(CharmBase):
         if not self.unit.is_leader():
             self.unit.status = WaitingStatus("Waiting for leadership")
             return
-        self.image = OCIImageResource(self, 'metallb-controller-image')
+        self.image = OCIImageResource(self, "metallb-controller-image")
         self.framework.observe(self.on.install, self._on_start)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.leader_elected, self._on_start)
@@ -49,10 +44,13 @@ class MetalLBControllerCharm(CharmBase):
         self._stored.set_default(namespace=os.environ["JUJU_MODEL_NAME"])
 
     def _config_hash(self):
-        data = json.dumps({
-            'iprange': self.model.config['iprange'],
-        }, sort_keys=True)
-        return md5(data.encode('utf8')).hexdigest()
+        data = json.dumps(
+            {
+                "iprange": self.model.config["iprange"],
+            },
+            sort_keys=True,
+        )
+        return md5(data.encode("utf8")).hexdigest()
 
     def _on_start(self, event):
         """Occurs upon install, start, upgrade, and possibly config changed."""
@@ -62,13 +60,14 @@ class MetalLBControllerCharm(CharmBase):
         try:
             image_info = self.image.fetch()
         except OCIImageResourceError:
-            logging.exception('An error occured while fetching the image info')
+            logging.exception("An error occured while fetching the image info")
             self.unit.status = BlockedStatus("Error fetching image information")
             return
 
         if not self._stored.k8s_objects_created:
-            self.unit.status = MaintenanceStatus("Creating supplementary "
-                                                 "Kubernetes objects")
+            self.unit.status = MaintenanceStatus(
+                "Creating supplementary " "Kubernetes objects"
+            )
             utils.create_k8s_objects(self._stored.namespace)
             self._stored.k8s_objects_created = True
 
@@ -84,9 +83,10 @@ class MetalLBControllerCharm(CharmBase):
         self._on_start(event)
 
     def _on_config_changed(self, event):
-        if self.model.config['protocol'] != 'layer2':
-            self.unit.status = BlockedStatus('Invalid protocol; '
-                                             'only "layer2" currently supported')
+        if self.model.config["protocol"] != "layer2":
+            self.unit.status = BlockedStatus(
+                "Invalid protocol; " 'only "layer2" currently supported'
+            )
             return
         current_config_hash = self._config_hash()
         if current_config_hash != self._stored.config_hash:
@@ -96,8 +96,9 @@ class MetalLBControllerCharm(CharmBase):
 
     def _on_remove(self, event):
         """Remove of artifacts created by the K8s API."""
-        self.unit.status = MaintenanceStatus("Removing supplementary "
-                                             "Kubernetes objects")
+        self.unit.status = MaintenanceStatus(
+            "Removing supplementary " "Kubernetes objects"
+        )
         utils.remove_k8s_objects(self._stored.namespace)
         self.unit.status = MaintenanceStatus("Removing pod")
         self._stored.started = False
@@ -112,77 +113,77 @@ class MetalLBControllerCharm(CharmBase):
 
         self.model.pod.set_spec(
             {
-                'version': 3,
-                'serviceAccount': {
-                    'roles': [{
-                        'global': True,
-                        'rules': [
-                            {
-                                'apiGroups': [''],
-                                'resources': ['services'],
-                                'verbs': ['get', 'list', 'watch', 'update'],
-                            },
-                            {
-                                'apiGroups': [''],
-                                'resources': ['services/status'],
-                                'verbs': ['update'],
-                            },
-                            {
-                                'apiGroups': [''],
-                                'resources': ['events'],
-                                'verbs': ['create', 'patch'],
-                            },
-                            {
-                                'apiGroups': ['policy'],
-                                'resourceNames': ['controller'],
-                                'resources': ['podsecuritypolicies'],
-                                'verbs': ['use'],
-                            },
-                        ],
-                    }],
+                "version": 3,
+                "serviceAccount": {
+                    "roles": [
+                        {
+                            "global": True,
+                            "rules": [
+                                {
+                                    "apiGroups": [""],
+                                    "resources": ["services"],
+                                    "verbs": ["get", "list", "watch", "update"],
+                                },
+                                {
+                                    "apiGroups": [""],
+                                    "resources": ["services/status"],
+                                    "verbs": ["update"],
+                                },
+                                {
+                                    "apiGroups": [""],
+                                    "resources": ["events"],
+                                    "verbs": ["create", "patch"],
+                                },
+                                {
+                                    "apiGroups": ["policy"],
+                                    "resourceNames": ["controller"],
+                                    "resources": ["podsecuritypolicies"],
+                                    "verbs": ["use"],
+                                },
+                            ],
+                        }
+                    ],
                 },
-                'containers': [{
-                    'name': 'controller',
-                    'imageDetails': image_info,
-                    'imagePullPolicy': 'Always',
-                    'ports': [{
-                        'containerPort': 7472,
-                        'protocol': 'TCP',
-                        'name': 'monitoring'
-                    }],
-                    # TODO: add constraint fields once it exists in pod_spec
-                    # bug : https://bugs.launchpad.net/juju/+bug/1893123
-                    # 'resources': {
-                    #     'limits': {
-                    #         'cpu': '100m',
-                    #         'memory': '100Mi',
-                    #     }
-                    # },
-                    'kubernetes': {
-                        'securityContext': {
-                            'privileged': False,
-                            'runAsNonRoot': True,
-                            'runAsUser': 65534,
-                            'readOnlyRootFilesystem': True,
-                            'capabilities': {
-                                'drop': ['ALL']
+                "containers": [
+                    {
+                        "name": "controller",
+                        "imageDetails": image_info,
+                        "imagePullPolicy": "Always",
+                        "ports": [
+                            {
+                                "containerPort": 7472,
+                                "protocol": "TCP",
+                                "name": "monitoring",
                             }
+                        ],
+                        # TODO: add constraint fields once it exists in pod_spec
+                        # bug : https://bugs.launchpad.net/juju/+bug/1893123
+                        # 'resources': {
+                        #     'limits': {
+                        #         'cpu': '100m',
+                        #         'memory': '100Mi',
+                        #     }
+                        # },
+                        "kubernetes": {
+                            "securityContext": {
+                                "privileged": False,
+                                "runAsNonRoot": True,
+                                "runAsUser": 65534,
+                                "readOnlyRootFilesystem": True,
+                                "capabilities": {"drop": ["ALL"]},
+                            },
+                            # fields do not exist in pod_spec
+                            # 'TerminationGracePeriodSeconds': 0,
                         },
-                        # fields do not exist in pod_spec
-                        # 'TerminationGracePeriodSeconds': 0,
-                    },
-                }],
-                'service': {
-                    'annotations': {
-                        'prometheus.io/port': '7472',
-                        'prometheus.io/scrape': 'true'
+                    }
+                ],
+                "service": {
+                    "annotations": {
+                        "prometheus.io/port": "7472",
+                        "prometheus.io/scrape": "true",
                     }
                 },
-                'configMaps': {
-                    'config': {
-                        'config': cm
-                    }
-                }
+                "configMaps": {"config": {"config": cm}},
             },
         )
 
