@@ -11,7 +11,7 @@ from oci_image import OCIImageResource, OCIImageResourceError
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
 
 import utils
 
@@ -27,7 +27,7 @@ class MetalLBControllerCharm(CharmBase):
         """Charm initialization for events observation."""
         super().__init__(*args)
         if not self.unit.is_leader():
-            self.unit.status = WaitingStatus("Waiting for leadership")
+            self.unit.status = ActiveStatus()
             return
         self.image = OCIImageResource(self, "metallb-controller-image")
         self.framework.observe(self.on.install, self._on_start)
