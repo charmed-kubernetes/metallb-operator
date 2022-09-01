@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def create_k8s_objects(namespace):
     """Create all supplementary K8s objects."""
     version_tup = get_k8s_version()
-    if version_tup < (1, 25, 0):
+    if version_tup[:2] < (1, 25):
         create_pod_security_policy_with_api(namespace=namespace)
     else:
         logging.info("Not creating PSP, kubelet version >= 1.25.0")
@@ -38,7 +38,7 @@ def create_k8s_objects(namespace):
 def remove_k8s_objects(namespace):
     """Remove all supplementary K8s objects."""
     version_tup = get_k8s_version()
-    if version_tup < (1, 25, 0):
+    if version_tup[:2] < (1, 25):
         delete_pod_security_policy_with_api(name="controller")
     else:
         logging.info("Skipping PSP removal, kubelet version >= 1.25.0")
@@ -248,7 +248,7 @@ def get_pod_spec(image_info, cm):
             "verbs": ["create", "patch"],
         },
     ]
-    if version_tup < (1, 25, 0):
+    if version_tup[:2] < (1, 25):
         logging.info("Appending PSP-related podspec rules, kubelet version < 1.25.0")
         rules.append(
             {
