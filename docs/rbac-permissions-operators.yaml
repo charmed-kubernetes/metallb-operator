@@ -9,7 +9,7 @@ metadata:
   name: use-k8s-api
 rules:
 - apiGroups: ["policy", "rbac.authorization.k8s.io"]
-  resources: ["podsecuritypolicies", "roles", "rolebindings"]
+  resources: ["podsecuritypolicies", "roles", "rolebindings", "nodes"]
   verbs: ["create", "delete"]
 - apiGroups: [""]
   resources: ["configmaps"]
