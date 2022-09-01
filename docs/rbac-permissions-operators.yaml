@@ -9,10 +9,10 @@ metadata:
   name: use-k8s-api
 rules:
 - apiGroups: ["policy", "rbac.authorization.k8s.io"]
-  resources: ["podsecuritypolicies", "roles", "rolebindings", "nodes"]
+  resources: ["podsecuritypolicies", "roles", "rolebindings"]
   verbs: ["create", "delete"]
 - apiGroups: [""]
-  resources: ["configmaps"]
+  resources: ["configmaps", "nodes"]
   verbs: ["get", "list", "watch"]
 ---
 kind: ClusterRoleBinding
