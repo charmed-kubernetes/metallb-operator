@@ -3,6 +3,7 @@
 import logging
 import os
 import random
+import re
 import string
 
 from kubernetes import client, config
@@ -13,7 +14,12 @@ logger = logging.getLogger(__name__)
 
 def create_k8s_objects(namespace):
     """Create all supplementary K8s objects."""
-    create_pod_security_policy_with_api(namespace=namespace)
+    version_tup = get_k8s_version()
+    if version_tup < (1, 25, 0):
+        create_pod_security_policy_with_api(namespace=namespace)
+    else:
+        logging.info("Not creating PSP, kubelet version >= 1.25.0")
+
     create_namespaced_role_with_api(
         name="config-watcher",
         namespace=namespace,
@@ -31,7 +37,11 @@ def create_k8s_objects(namespace):
 
 def remove_k8s_objects(namespace):
     """Remove all supplementary K8s objects."""
-    delete_pod_security_policy_with_api(name="controller")
+    version_tup = get_k8s_version()
+    if version_tup < (1, 25, 0):
+        delete_pod_security_policy_with_api(name="controller")
+    else:
+        logging.info("Skipping PSP removal, kubelet version >= 1.25.0")
     delete_namespaced_role_binding_with_api(name="config-watcher", namespace=namespace)
     delete_namespaced_role_with_api(name="config-watcher", namespace=namespace)
 
@@ -200,6 +210,109 @@ def delete_namespaced_role_binding_with_api(name, namespace):
                 "Exception when calling RbacAuthorizationV1Api"
                 "->delete_namespaced_role_binding."
             )
+
+
+def get_k8s_version():
+    """Get k8s version with K8s API."""
+    logging.info("Getting k8s version with API")
+    _load_kube_config()
+
+    v1 = client.CoreV1Api()
+    try:
+        api_response = v1.list_node(pretty=True)
+        node = api_response.items[0]
+        kubelet_version = node.status.node_info.kubelet_version
+        version_tup = tuple(int(q) for q in re.findall("[0-9]+", kubelet_version)[:3])
+        return version_tup
+    except ApiException as e:
+        print("Exception when calling CoreV1Api->list_node: %s\n" % e)
+
+
+def get_pod_spec(image_info, cm):
+    """Get pod spec."""
+    version_tup = get_k8s_version()
+    rules = [
+        {
+            "apiGroups": [""],
+            "resources": ["services"],
+            "verbs": ["get", "list", "watch", "update"],
+        },
+        {
+            "apiGroups": [""],
+            "resources": ["services/status"],
+            "verbs": ["update"],
+        },
+        {
+            "apiGroups": [""],
+            "resources": ["events"],
+            "verbs": ["create", "patch"],
+        },
+    ]
+    if version_tup < (1, 25, 0):
+        logging.info("Appending PSP-related podspec rules, kubelet version < 1.25.0")
+        rules.append(
+            {
+                "apiGroups": ["policy"],
+                "resourceNames": ["controller"],
+                "resources": ["podsecuritypolicies"],
+                "verbs": ["use"],
+            }
+        )
+    else:
+        logging.info("Skipping PSP-related podspec rules, kubelet version >= 1.25.0")
+
+    spec = {
+        "version": 3,
+        "serviceAccount": {
+            "roles": [
+                {
+                    "global": True,
+                    "rules": rules,
+                }
+            ],
+        },
+        "containers": [
+            {
+                "name": "controller",
+                "imageDetails": image_info,
+                "imagePullPolicy": "Always",
+                "ports": [
+                    {
+                        "containerPort": 7472,
+                        "protocol": "TCP",
+                        "name": "monitoring",
+                    }
+                ],
+                # TODO: add constraint fields once it exists in pod_spec
+                # bug : https://bugs.launchpad.net/juju/+bug/1893123
+                # 'resources': {
+                #     'limits': {
+                #         'cpu': '100m',
+                #         'memory': '100Mi',
+                #     }
+                # },
+                "kubernetes": {
+                    "securityContext": {
+                        "privileged": False,
+                        "runAsNonRoot": True,
+                        "runAsUser": 65534,
+                        "readOnlyRootFilesystem": True,
+                        "capabilities": {"drop": ["ALL"]},
+                    },
+                    # fields do not exist in pod_spec
+                    # 'TerminationGracePeriodSeconds': 0,
+                },
+            }
+        ],
+        "service": {
+            "annotations": {
+                "prometheus.io/port": "7472",
+                "prometheus.io/scrape": "true",
+            }
+        },
+        "configMaps": {"config": {"config": cm}},
+    }
+    return spec
 
 
 def _random_secret(length):

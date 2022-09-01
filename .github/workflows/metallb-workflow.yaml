@@ -25,6 +25,7 @@ jobs:
     strategy:
       matrix:
         rbac: ["without RBAC", "with RBAC"]
+        channel: ["1.24/stable", "1.25/stable"]
     steps:
     - name: Check out code
       uses: actions/checkout@v2
@@ -32,6 +33,7 @@ jobs:
       uses: charmed-kubernetes/actions-operator@main
       with:
         provider: microk8s
+        channel: ${{ matrix.channel }}
     # RBAC is enabled by default; TODO: ideally, this would be an option of actions-operator
     - name: Disable RBAC
       if: ${{ matrix.rbac == 'without RBAC' }}
