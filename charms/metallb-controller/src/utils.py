@@ -247,6 +247,11 @@ def get_pod_spec(image_info, cm):
             "resources": ["events"],
             "verbs": ["create", "patch"],
         },
+        {
+            "apiGroups": [""],
+            "resources": ["nodes"],
+            "verbs": ["list"],
+        },
     ]
     if version_tup[:2] < (1, 25):
         logging.info("Appending PSP-related podspec rules, kubelet version < 1.25.0")
