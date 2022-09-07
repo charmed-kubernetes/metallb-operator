@@ -3,7 +3,6 @@
 import logging
 import os
 import random
-import re
 import string
 import sys
 
@@ -15,11 +14,10 @@ logger = logging.getLogger(__name__)
 
 def create_k8s_objects(namespace):
     """Create all supplementary K8s objects."""
-    version_tup = get_k8s_version()
-    if version_tup[:2] < (1, 25):
+    if supports_policy_v1_beta():
         create_pod_security_policy_with_api(namespace=namespace)
     else:
-        logging.info("Not creating PSP, kubelet version >= 1.25.0")
+        logging.info("Not creating PSP, doesn't support policy_v1_beta")
     create_namespaced_role_with_api(
         name="config-watcher",
         namespace=namespace,
@@ -50,11 +48,10 @@ def create_k8s_objects(namespace):
 
 def remove_k8s_objects(namespace):
     """Remove all supplementary K8s objects."""
-    version_tup = get_k8s_version()
-    if version_tup[:2] < (1, 25):
+    if supports_policy_v1_beta():
         delete_pod_security_policy_with_api(name="speaker")
     else:
-        logging.info("Skipping PSP removal, kubelet version >= 1.25.0")
+        logging.info("Skipping PSP removal, doesn't support policy_v1_beta")
 
     delete_namespaced_role_binding_with_api(name="config-watcher", namespace=namespace)
     delete_namespaced_role_with_api(name="config-watcher", namespace=namespace)
@@ -241,25 +238,24 @@ def delete_namespaced_role_binding_with_api(name, namespace):
             )
 
 
-def get_k8s_version():
-    """Get k8s version with K8s API."""
-    logging.info("Getting k8s version with API")
+def supports_policy_v1_beta():
+    """Determine if k8s api supports PolicyV1/beta."""
+    logging.info("Determine if k8s api supports PolicyV1/beta")
     _load_kube_config()
 
-    v1 = client.CoreV1Api()
-    try:
-        api_response = v1.list_node(pretty=True)
-        node = api_response.items[0]
-        kubelet_version = node.status.node_info.kubelet_version
-        version_tup = tuple(int(q) for q in re.findall("[0-9]+", kubelet_version)[:3])
-        return version_tup
-    except ApiException as e:
-        print("Exception when calling CoreV1Api->list_node: %s\n" % e)
+    with client.ApiClient() as api_client:
+        api_instance = client.PolicyV1beta1Api(api_client)
+        try:
+            api_instance.get_api_resources()
+        except ApiException as err:
+            if err.status == 404:
+                return False
+    return True
 
 
 def get_pod_spec(image_info, secret_key):
     """Get pod spec."""
-    version_tup = get_k8s_version()
+    policyv1_beta = supports_policy_v1_beta()
     rules = [
         {
             "apiGroups": [""],
@@ -272,8 +268,8 @@ def get_pod_spec(image_info, secret_key):
             "verbs": ["create", "patch"],
         },
     ]
-    if version_tup[:2] < (1, 25):
-        logging.info("Appending PSP-related podspec rules, kubelet version < 1.25.0")
+    if policyv1_beta:
+        logging.info("Appending PSP-related podspec rules, policyv1_beta supported")
         rules.append(
             {
                 "apiGroups": ["policy"],
@@ -283,7 +279,7 @@ def get_pod_spec(image_info, secret_key):
             }
         )
     else:
-        logging.info("Skipping PSP-related podspec rules, kubelet version >= 1.25.0")
+        logging.info("Skipping PSP-related podspec rules, policyv1_beta not supported")
 
     spec = {
         "version": 3,
