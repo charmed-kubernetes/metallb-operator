@@ -68,9 +68,12 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
             units_in_error(False), timeout=5 * 60, wait_period=1
         )
 
-    log.info("Testing LB with microbot")
     await ops_test.model.wait_for_idle(wait_for_active=True, raise_on_blocked=True)
+
+
+async def test_microbot_lb(ops_test, test_helpers):
     # test metallb
+    log.info("Testing LB with microbot")
     await test_helpers.metallb_ready()
     await test_helpers.deploy_microbot()
     svc_address = await test_helpers.svc_ingress("microbot-lb")
@@ -78,7 +81,7 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
     async with aiohttp.request("GET", f"http://{svc_address}", timeout=timeout) as resp:
         assert resp.status == 200
 
-    for unit in (controller, speaker):
+    for unit in ops_test.model.units.values():
         rc, stdout, stderr = await ops_test.run(
             "juju", "show-status-log", "-m", ops_test.model_full_name, unit.name
         )
