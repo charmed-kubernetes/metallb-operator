@@ -12,7 +12,7 @@ rules:
   resources: ["podsecuritypolicies", "roles", "rolebindings"]
   verbs: ["create", "delete"]
 - apiGroups: [""]
-  resources: ["configmaps", "nodes"]
+  resources: ["configmaps"]
   verbs: ["get", "list", "watch"]
 ---
 kind: ClusterRoleBinding
