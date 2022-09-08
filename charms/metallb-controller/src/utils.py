@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 def create_k8s_objects(namespace):
     """Create all supplementary K8s objects."""
-    create_pod_security_policy_with_api(namespace=namespace)
+    if supports_policy_v1_beta():
+        create_pod_security_policy_with_api(namespace=namespace)
+    else:
+        logging.info("Not creating PSP, doesn't support policy_v1_beta")
     create_namespaced_role_with_api(
         name="config-watcher",
         namespace=namespace,
@@ -31,7 +34,10 @@ def create_k8s_objects(namespace):
 
 def remove_k8s_objects(namespace):
     """Remove all supplementary K8s objects."""
-    delete_pod_security_policy_with_api(name="controller")
+    if supports_policy_v1_beta():
+        delete_pod_security_policy_with_api(name="controller")
+    else:
+        logging.info("Skipping PSP removal, doesn't support policy_v1_beta")
     delete_namespaced_role_binding_with_api(name="config-watcher", namespace=namespace)
     delete_namespaced_role_with_api(name="config-watcher", namespace=namespace)
 
@@ -200,6 +206,113 @@ def delete_namespaced_role_binding_with_api(name, namespace):
                 "Exception when calling RbacAuthorizationV1Api"
                 "->delete_namespaced_role_binding."
             )
+
+
+def supports_policy_v1_beta():
+    """Determine if k8s api supports PolicyV1/beta."""
+    logging.info("Determine if k8s api supports PolicyV1/beta")
+    _load_kube_config()
+
+    with client.ApiClient() as api_client:
+        api_instance = client.PolicyV1beta1Api(api_client)
+        try:
+            api_instance.get_api_resources()
+        except ApiException as err:
+            if err.status == 404:
+                return False
+    return True
+
+
+def get_pod_spec(image_info, cm):
+    """Get pod spec."""
+    policyv1_beta = supports_policy_v1_beta()
+    rules = [
+        {
+            "apiGroups": [""],
+            "resources": ["services"],
+            "verbs": ["get", "list", "watch", "update"],
+        },
+        {
+            "apiGroups": [""],
+            "resources": ["services/status"],
+            "verbs": ["update"],
+        },
+        {
+            "apiGroups": [""],
+            "resources": ["events"],
+            "verbs": ["create", "patch"],
+        },
+        {
+            "apiGroups": [""],
+            "resources": ["nodes"],
+            "verbs": ["list"],
+        },
+    ]
+    if policyv1_beta:
+        logging.info("Appending PSP-related podspec rules, policyv1_beta supported")
+        rules.append(
+            {
+                "apiGroups": ["policy"],
+                "resourceNames": ["controller"],
+                "resources": ["podsecuritypolicies"],
+                "verbs": ["use"],
+            }
+        )
+    else:
+        logging.info("Skipping PSP-related podspec rules, policyv1_beta not supported")
+
+    spec = {
+        "version": 3,
+        "serviceAccount": {
+            "roles": [
+                {
+                    "global": True,
+                    "rules": rules,
+                }
+            ],
+        },
+        "containers": [
+            {
+                "name": "controller",
+                "imageDetails": image_info,
+                "imagePullPolicy": "Always",
+                "ports": [
+                    {
+                        "containerPort": 7472,
+                        "protocol": "TCP",
+                        "name": "monitoring",
+                    }
+                ],
+                # TODO: add constraint fields once it exists in pod_spec
+                # bug : https://bugs.launchpad.net/juju/+bug/1893123
+                # 'resources': {
+                #     'limits': {
+                #         'cpu': '100m',
+                #         'memory': '100Mi',
+                #     }
+                # },
+                "kubernetes": {
+                    "securityContext": {
+                        "privileged": False,
+                        "runAsNonRoot": True,
+                        "runAsUser": 65534,
+                        "readOnlyRootFilesystem": True,
+                        "capabilities": {"drop": ["ALL"]},
+                    },
+                    # fields do not exist in pod_spec
+                    # 'TerminationGracePeriodSeconds': 0,
+                },
+            }
+        ],
+        "service": {
+            "annotations": {
+                "prometheus.io/port": "7472",
+                "prometheus.io/scrape": "true",
+            }
+        },
+        "configMaps": {"config": {"config": cm}},
+    }
+    return spec
 
 
 def _random_secret(length):
