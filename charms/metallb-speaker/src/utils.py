@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 
 def create_k8s_objects(namespace):
     """Create all supplementary K8s objects."""
-    create_pod_security_policy_with_api(namespace=namespace)
+    if supports_policy_v1_beta():
+        create_pod_security_policy_with_api(namespace=namespace)
+    else:
+        logging.info("Not creating PSP, doesn't support policy_v1_beta")
     create_namespaced_role_with_api(
         name="config-watcher",
         namespace=namespace,
@@ -45,7 +48,11 @@ def create_k8s_objects(namespace):
 
 def remove_k8s_objects(namespace):
     """Remove all supplementary K8s objects."""
-    delete_pod_security_policy_with_api(name="speaker")
+    if supports_policy_v1_beta():
+        delete_pod_security_policy_with_api(name="speaker")
+    else:
+        logging.info("Skipping PSP removal, doesn't support policy_v1_beta")
+
     delete_namespaced_role_binding_with_api(name="config-watcher", namespace=namespace)
     delete_namespaced_role_with_api(name="config-watcher", namespace=namespace)
     delete_namespaced_role_binding_with_api(name="pod-lister", namespace=namespace)
@@ -169,11 +176,14 @@ def delete_namespaced_role_with_api(name, namespace):
             api_instance.delete_namespaced_role(
                 name=name, namespace=namespace, body=body, pretty=True
             )
-        except ApiException:
+        except ApiException as err:
             logging.exception(
                 "Exception when calling RbacAuthorizationV1Api"
                 "->delete_namespaced_role."
             )
+            if err.status != 409:
+                # Hook error except for 409 (AlreadyExists) errors
+                sys.exit(1)
 
 
 def create_namespaced_role_binding_with_api(
@@ -226,6 +236,131 @@ def delete_namespaced_role_binding_with_api(name, namespace):
                 "Exception when calling RbacAuthorizationV1Api->"
                 "delete_namespaced_role_binding."
             )
+
+
+def supports_policy_v1_beta():
+    """Determine if k8s api supports PolicyV1/beta."""
+    logging.info("Determine if k8s api supports PolicyV1/beta")
+    _load_kube_config()
+
+    with client.ApiClient() as api_client:
+        api_instance = client.PolicyV1beta1Api(api_client)
+        try:
+            api_instance.get_api_resources()
+        except ApiException as err:
+            if err.status == 404:
+                return False
+    return True
+
+
+def get_pod_spec(image_info, secret_key):
+    """Get pod spec."""
+    policyv1_beta = supports_policy_v1_beta()
+    rules = [
+        {
+            "apiGroups": [""],
+            "resources": ["services", "endpoints", "nodes"],
+            "verbs": ["get", "list", "watch"],
+        },
+        {
+            "apiGroups": [""],
+            "resources": ["events"],
+            "verbs": ["create", "patch"],
+        },
+    ]
+    if policyv1_beta:
+        logging.info("Appending PSP-related podspec rules, policyv1_beta supported")
+        rules.append(
+            {
+                "apiGroups": ["policy"],
+                "resourceNames": ["speaker"],
+                "resources": ["podsecuritypolicies"],
+                "verbs": ["use"],
+            }
+        )
+    else:
+        logging.info("Skipping PSP-related podspec rules, policyv1_beta not supported")
+
+    spec = {
+        "version": 3,
+        "serviceAccount": {
+            "roles": [{"global": True, "rules": rules}],
+        },
+        "containers": [
+            {
+                "name": "speaker",
+                "imageDetails": image_info,
+                "imagePullPolicy": "Always",
+                "ports": [
+                    {
+                        "containerPort": 7472,
+                        "protocol": "TCP",
+                        "name": "monitoring",
+                    }
+                ],
+                "envConfig": {
+                    "METALLB_NODE_NAME": {
+                        "field": {"path": "spec.nodeName", "api-version": "v1"}
+                    },
+                    "METALLB_HOST": {
+                        "field": {"path": "status.hostIP", "api-version": "v1"}
+                    },
+                    "METALLB_ML_BIND_ADDR": {
+                        "field": {"path": "status.podIP", "api-version": "v1"}
+                    },
+                    "METALLB_ML_LABELS": "app=metallb,component=speaker",
+                    "METALLB_ML_NAMESPACE": {
+                        "field": {
+                            "path": "metadata.namespace",
+                            "api-version": "v1",
+                        }
+                    },
+                    "METALLB_ML_SECRET_KEY": {
+                        "secret": {"name": "memberlist", "key": "secretkey"}
+                    },
+                },
+                # TODO: add constraint fields once it exists in pod_spec
+                # bug : https://bugs.launchpad.net/juju/+bug/1893123
+                # 'resources': {
+                #     'limits': {
+                #         'cpu': '100m',
+                #         'memory': '100Mi',
+                #     }
+                # },
+                "kubernetes": {
+                    "securityContext": {
+                        "allowPrivilegeEscalation": False,
+                        "readOnlyRootFilesystem": True,
+                        "capabilities": {
+                            "add": ["NET_ADMIN", "NET_RAW", "SYS_ADMIN"],
+                            "drop": ["ALL"],
+                        },
+                    },
+                    # fields do not exist in pod_spec
+                    # 'TerminationGracePeriodSeconds': 2,
+                },
+            }
+        ],
+        "kubernetesResources": {
+            "pod": {"hostNetwork": True},
+            "secrets": [
+                {
+                    "name": "memberlist",
+                    "type": "Opaque",
+                    "data": {
+                        "secretkey": secret_key,
+                    },
+                }
+            ],
+        },
+        "service": {
+            "annotations": {
+                "prometheus.io/port": "7472",
+                "prometheus.io/scrape": "true",
+            }
+        },
+    }
+    return spec
 
 
 def _random_secret(length):
