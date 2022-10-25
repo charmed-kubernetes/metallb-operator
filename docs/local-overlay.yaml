@@ -10,8 +10,8 @@ applications:
   metallb-controller:
     charm: ../metallb-controller.charm
     resources:
-      metallb-controller-image: 'metallb/controller:v0.9.3'
+      metallb-controller-image: 'metallb/controller:v0.12'
   metallb-speaker:
     charm: ../metallb-speaker.charm
     resources:
-      metallb-speaker-image: 'metallb/speaker:v0.9.3'
+      metallb-speaker-image: 'metallb/speaker:v0.12'
