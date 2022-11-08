@@ -25,6 +25,7 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
     speaker = await ops_test.model.deploy(
         speaker_charm,
         resources={"metallb-speaker-image": "metallb/speaker:v0.12"},
+        trust=True
     )
 
     if rbac:
