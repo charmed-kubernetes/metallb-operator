@@ -1,5 +1,5 @@
 # Architectures based on supported arch's in upstream
-# https://hub.docker.com/layers/metallb/speaker/v0.9.3/images/sha256-70952965b63b7463c6c0fccb82f2d4e24bc08ea847eb2c1b487c39e4d8a67229
+# https://hub.docker.com/layers/metallb/speaker/v0.12/images/sha256-a1dc3ae8d53b40490d0fb4b25026ec51d88ab2b27bb2b91602780f7eb58b699e
 type: charm
 bases:
   - build-on:
