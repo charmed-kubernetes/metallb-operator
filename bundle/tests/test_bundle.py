@@ -20,12 +20,12 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
     controller = await ops_test.model.deploy(
         controller_charm,
         config={"iprange": "10.1.240.240-10.1.240.241"},
-        resources={"metallb-controller-image": "metallb/controller:v0.12"},
+        resources={"metallb-controller-image": "quay.io/metallb/controller:v0.12"},
         trust=True
     )
     speaker = await ops_test.model.deploy(
         speaker_charm,
-        resources={"metallb-speaker-image": "metallb/speaker:v0.12"},
+        resources={"metallb-speaker-image": "quay.io/metallb/speaker:v0.12"},
         trust=True
     )
 
