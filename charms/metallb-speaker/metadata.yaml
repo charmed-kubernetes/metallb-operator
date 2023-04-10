@@ -21,4 +21,4 @@ resources:
   metallb-speaker-image:
     type: oci-image
     description: upstream docker image for metallb-controller
-    upstream-source: 'metallb/speaker:v0.12'
+    upstream-source: 'quay.io/metallb/speaker:v0.12'
