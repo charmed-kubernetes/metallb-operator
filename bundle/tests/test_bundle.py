@@ -1,9 +1,29 @@
 import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Mapping
+import yaml
 
 import aiohttp
 
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class CharmPath:
+    path: str
+
+    @property
+    def metadata(self) -> Mapping[str, Any]:
+        return yaml.safe_load(Path(self.path, "metadata.yaml").open())
+
+    @property
+    def resources(self) -> Mapping[str, str]:
+        return {
+            name: rsc["upstream-source"]
+            for name, rsc in self.metadata["resources"].items()
+        }
 
 
 async def test_build_and_deploy(ops_test, test_helpers, rbac):
@@ -15,22 +35,25 @@ async def test_build_and_deploy(ops_test, test_helpers, rbac):
     # https://github.com/juju/python-libjuju/issues/472
     # can't use ops_test.build_charms() because of:
     # https://github.com/canonical/charmcraft/issues/554
-    controller_charm = await ops_test.build_charm("charms/metallb-controller")
-    speaker_charm = await ops_test.build_charm("charms/metallb-speaker")
+    controller = CharmPath("charms/metallb-controller")
+    speaker = CharmPath("charms/metallb-speaker")
+    controller_charm = await ops_test.build_charm(controller.path)
+    speaker_charm = await ops_test.build_charm(speaker.path)
     controller = await ops_test.model.deploy(
         controller_charm,
         config={"iprange": "10.1.240.240-10.1.240.241"},
-        resources={"metallb-controller-image": "quay.io/metallb/controller:v0.12"},
+        resources=controller.resources,
+        series="jammy",
         trust=True
     )
     speaker = await ops_test.model.deploy(
         speaker_charm,
-        resources={"metallb-speaker-image": "quay.io/metallb/speaker:v0.12"},
+        resources=speaker.resources,
+        series="jammy",
         trust=True
     )
 
     if rbac:
-
         def units_in_error(expect_error):
             def _predicate():
                 no = "no " if not expect_error else ""
@@ -77,14 +100,14 @@ async def test_microbot_lb(ops_test, test_helpers):
     # test metallb
     log.info("Testing LB with microbot")
     await test_helpers.metallb_ready()
-    await test_helpers.deploy_microbot()
-    svc_address = await test_helpers.svc_ingress("microbot-lb")
-    timeout = aiohttp.ClientTimeout(connect=10)
-    async with aiohttp.request("GET", f"http://{svc_address}", timeout=timeout) as resp:
-        assert resp.status == 200
+    async with test_helpers.deploy_microbot():
+        svc_address = await test_helpers.svc_ingress("microbot-lb")
+        timeout = aiohttp.ClientTimeout(connect=10)
+        async with aiohttp.request("GET", f"http://{svc_address}", timeout=timeout) as resp:
+            assert resp.status == 200
 
-    for unit in ops_test.model.units.values():
-        rc, stdout, stderr = await ops_test.run(
-            "juju", "show-status-log", "-m", ops_test.model_full_name, unit.name
-        )
-        log.info(stdout)
+        for unit in ops_test.model.units.values():
+            rc, stdout, stderr = await ops_test.run(
+                "juju", "show-status-log", "-m", ops_test.model_full_name, unit.name
+            )
+            log.info(stdout)

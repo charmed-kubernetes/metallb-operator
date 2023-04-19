@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import yaml
+from contextlib import asynccontextmanager
 from distutils.util import strtobool
 from pathlib import Path
 
@@ -57,11 +58,11 @@ class TestHelpers:
                 "jsonpath={.items[*].status.phase}",
             )
             status = status.split()
-            log.info(f"Status: {status}")
+            log.info(f"Attempt: {attempt}/60 Status: {status}")
             if status == ["Running"] * count:
                 return
             else:
-                await asyncio.sleep(2)
+                await asyncio.sleep(5)
         else:
             raise TimeoutError(
                 f"Timed out waiting for {count} {label} pods to be ready"
@@ -104,6 +105,11 @@ class TestHelpers:
         rbac_dst_path.write_text(yaml.safe_dump_all(rbac_rules))
         await self.kubectl("apply", "-f", str(rbac_dst_path))
 
+    @asynccontextmanager
     async def deploy_microbot(self):
         await self.kubectl("apply", "-f", "./docs/example-microbot-lb.yaml")
-        await self.pods_ready("app=microbot-lb", 3)
+        try:
+            await self.pods_ready("app=microbot-lb", 3)
+            yield
+        finally:
+            await self.kubectl("delete", "-f", "./docs/example-microbot-lb.yaml")
