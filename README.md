@@ -1,64 +1,26 @@
-# MetalLB Operator
+<!--
+Avoid using this README file for information that is maintained or published elsewhere, e.g.:
 
-## Overview
+* metadata.yaml > published on Charmhub
+* documentation > published on (or linked to from) Charmhub
+* detailed contribution guide > documentation or CONTRIBUTING.md
 
-MetalLB offers a software network load balancing implementation that allows for
-LoadBalancing services in Kubernetes. Upstream documentation for MetalLB can be
-found at <https://metallb.universe.tf/>
+Use links instead.
+-->
 
-The official documentation for these charms and how to use them with Kubernetes
-can be found at <https://ubuntu.com/kubernetes/docs/metallb>.
+# metallb
 
-This repo contains both of the MetalLB charms (under the [charms][] directory),
-as well as the bundle (under the [bundle][] directory).
+Charmhub package name: operator-template
+More information: https://charmhub.io/metallb
 
-## Filing bugs
+Describe your charm in one or two sentences.
 
-Please file bugs at https://bugs.launchpad.net/operator-metallb.
+## Other resources
 
-## Building the charms
+<!-- If your charm is documented somewhere else other than Charmhub, provide a link separately. -->
 
-The charms can be built locally using [charmcraft][]:
+- [Read more](https://example.com)
 
-```bash
-charmcraft build -f charms/metallb-controller
-charmcraft build -f charms/metallb-speaker
-```
+- [Contributing](CONTRIBUTING.md) <!-- or link to other contribution documentation -->
 
-## Testing locally
-
-The easiest way to test MetalLB locally is with [MicroK8s][]. Note that
-MicroK8s and Juju are not strictly build dependencies, so you may need
-to install them yourself:
-
-```bash
-snap install juju --classic
-snap install microk8s --classic
-sudo usermod -aG microk8s $USER
-newgrp microk8s
-microk8s.enable dns storage
-```
-
-Once that is done, you can bootstrap a Juju controller into MicroK8s, add a
-Kubernetes model, and deploy the bundle using the [local overlay][]:
-
-```bash
-juju bootstrap microk8s
-juju add-model metallb-system
-juju deploy ./bundle --overlay ./docs/local-overlay.yaml
-```
-
-There is also an [included manifest][microbot-manifest] for deploying microbot
-to test your deployment:
-
-```bash
-microk8s.kubectl apply -f ./docs/example-microbot-lb.yaml
-```
-
-<!-- Links -->
-[charms]: charms
-[bundle]: bundle
-[charmcraft]: https://github.com/canonical/charmcraft/
-[MicroK8s]: http://microk8s.io/
-[local overlay]: docs/local-overlay.yaml
-[microbot-manifest]: docs/example-microbot-lb.yaml
+- See the [Juju SDK documentation](https://juju.is/docs/sdk) for more information about developing and improving charms.
