@@ -126,8 +126,9 @@ class MetallbCharm(ops.CharmBase):
                 return
             else:
                 # surface any other errors besides not found
-                logger.error(e.status.message)
-                raise
+                logger.exception(e)
+                self.unit.status = WaitingStatus("Waiting for Kubernetes API")
+                return
         self.unit.status = ActiveStatus("Ready")
         self.unit.set_workload_version(self.native_collector.short_version)
         self.app.status = ActiveStatus(self.native_collector.long_version)
