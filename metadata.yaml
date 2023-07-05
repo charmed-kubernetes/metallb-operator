@@ -2,7 +2,7 @@ name: metallb
 summary: |
   This charm deploys MetalLB in a Kubernetes model, which provides a software
   defined load balancer.
-docs: https://discourse.charmhub.io/t/metallb/???
+docs: https://discourse.charmhub.io/t/metallb-controller-speaker/6320
 issues: https://bugs.launchpad.net/operator-metallb
 source: https://github.com/charmed-kubernetes/metallb-operator
 website: https://metallb.universe.tf/
