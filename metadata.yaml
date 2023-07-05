@@ -1,24 +1,21 @@
-# This file populates the Overview on Charmhub.
-# See https://juju.is/docs/sdk/metadata-reference for a checklist and guidance.
-
-# The charm package name, no spaces (required)
-# See https://juju.is/docs/sdk/naming#heading--naming-charms for guidance.
 name: metallb
- 
-# The following metadata are human-readable and will be published prominently on Charmhub.
-
-# (Recommended)
-display-name: Charm Template
-
-# (Required)
-summary: A very short one-line summary of the charm.
-
 description: |
-  A single sentence that says what the charm is, concisely and memorably.
-
-  A paragraph of one to three short sentences, that describe what the charm does.
-
-  A third paragraph that explains what need the charm meets.
-
-  Finally, a paragraph that describes whom the charm is useful for.
-
+  This charm deploys MetalLB controller in a Kubernetes model, which provides 
+  a software defined load balancer.
+docs: https://discourse.charmhub.io/t/metallb/???
+issues: https://bugs.launchpad.net/operator-metallb
+source: https://github.com/charmed-kubernetes/metallb-operator
+website: https://metallb.universe.tf/
+summary: |
+  MetalLB offers a software network load balancing implementation that allows for
+  LoadBalancing services in Kubernetes. It is a young open-source project that could
+  be charmed to integrate it easily with the Canonical suite of projects. Upstream
+  documentation can be found here : https://metallb.universe.tf/.
+  The controller is the cluster-wide controller that handles IP address assignments.
+  It must be deployed with its counterpart, metallb-speaker, which speaks the protocol
+  of your choice to make the services reachable.
+series:
+  - kubernetes
+tags:
+  - kubernetes
+  - metallb
