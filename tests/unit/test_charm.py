@@ -198,8 +198,10 @@ def test_update_status(harness, lk_manifests_client, lk_charm_client):
         # test path where some other API error occurs
         api_error.status.message = "something else happened"
         lk_charm_client.get.side_effect = api_error
-        with pytest.raises(ApiError):
-            harness.charm.on.update_status.emit()
+        harness.charm.on.update_status.emit()
+        assert harness.charm.model.unit.status == WaitingStatus(
+            "Waiting for Kubernetes API"
+        )
 
         # test ready path
         lk_charm_client.get.side_effect = None
