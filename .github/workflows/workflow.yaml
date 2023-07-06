@@ -34,7 +34,7 @@ jobs:
         uses: charmed-kubernetes/actions-operator@main
         with:
           provider: microk8s
-          channel: stable
+          channel: 1.27-strict/stable
           juju-channel: 3.1/stable
       - name: Disable RBAC If Needed
         if: ${{ matrix.rbac == 'without RBAC' }}
