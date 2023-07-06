@@ -35,6 +35,7 @@ jobs:
         with:
           provider: microk8s
           channel: stable
+          juju-channel: 3.1/stable
       - name: Disable RBAC If Needed
         if: ${{ matrix.rbac == 'without RBAC' }}
         run: |
