@@ -14,8 +14,6 @@ description: |
   The charm includes both the cluster-wide controller that handles IP address
   assignments, along with the speaker DaemonSet that makes the services
   reachable.
-series:
-  - kubernetes
 tags:
   - kubernetes
   - metallb
