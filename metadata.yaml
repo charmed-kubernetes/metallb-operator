@@ -17,3 +17,5 @@ description: |
 tags:
   - kubernetes
   - metallb
+assumes:
+  - k8s-api
