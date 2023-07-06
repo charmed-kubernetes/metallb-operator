@@ -1,0 +1,100 @@
+name: Test Suite
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  call-inclusive-naming-check:
+    name: Inclusive Naming
+    uses: canonical-web-and-design/Inclusive-naming/.github/workflows/woke.yaml@main
+    with:
+      fail-on-error: "true"
+
+  lint-unit:
+    name: Lint Unit
+    uses: charmed-kubernetes/workflows/.github/workflows/lint-unit.yaml@main
+    with:
+      python: "['3.8', '3.9', '3.10', '3.11']"
+    needs:
+      - call-inclusive-naming-check
+
+  integration-test-metallb:
+    runs-on: ubuntu-latest
+    name: Integration test
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        rbac: [ "without RBAC", "with RBAC" ]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Setup operator environment
+        uses: charmed-kubernetes/actions-operator@main
+        with:
+          provider: microk8s
+          channel: 1.27-strict/stable
+          juju-channel: 3.1/stable
+      - name: Disable RBAC If Needed
+        if: ${{ matrix.rbac == 'without RBAC' }}
+        run: |
+          sudo microk8s disable rbac
+          sudo microk8s status --wait-ready
+      - name: Run test
+        run: sg snap_microk8s -c "tox -e integration"
+      - name: Setup Debug Artifact Collection
+        if: ${{ failure() }}
+        run: mkdir tmp
+      - name: Collect K8s Status
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl get all -A 2>&1 | tee tmp/microk8s-status-all.txt
+      - name: Collect Juju Status
+        if: ${{ failure() }}
+        run: sudo juju status 2>&1 | tee tmp/juju-status.txt
+      - name: Collect K8s Deployment details
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl describe deployments -A 2>&1 | tee tmp/microk8s-deployments.txt
+      - name: Collect K8s ReplicaSet details
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl describe replicasets -A 2>&1 | tee tmp/microk8s-replicasets.txt
+      - name: Collect K8s DaemonSet details
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl describe daemonsets -A 2>&1 | tee tmp/microk8s-daemonsets.txt
+      - name: Collect K8s ServiceAccount details
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl describe serviceaccounts -A 2>&1 | tee tmp/microk8s-serviceaccounts.txt
+      - name: Collect K8s Role details
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl describe roles -A 2>&1 | tee tmp/microk8s-roles.txt
+      - name: Collect K8s ClusterRole details
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl describe clusterroles 2>&1 | tee tmp/microk8s-clusterroles.txt
+      - name: Collect K8s RoleBinding details
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl describe rolebindings -A 2>&1 | tee tmp/microk8s-rolebindings.txt
+      - name: Collect K8s ClusterRoleBinding details
+        if: ${{ failure() }}
+        run: sudo microk8s.kubectl describe clusterrolebindings 2>&1 | tee tmp/microk8s-clusterrolebindings.txt
+      - name: Collect K8s pod logs
+        if: ${{ failure() }}
+        run: |
+          for pod in `sudo microk8s.kubectl get pods -n metallb-system | awk '{print$1}' | grep -v NAME`; do
+            echo "Pod logs for: $pod"
+            echo "----------------------------------"
+            sudo microk8s.kubectl logs $pod -n metallb-system 2>&1 | tee tmp/pod-$pod-logs.txt
+            echo
+            echo
+          done
+      - name: Collect microk8s snap logs
+        if: ${{ failure() }}
+        run: sudo snap logs -n 300 microk8s 2>&1 | tee tmp/snap-log-microk8s.txt
+      - name: Collect Juju logs
+        if: ${{ failure() }}
+        run: sudo juju debug-log --replay | tee tmp/juju.log
+      - name: Upload debug artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: test-run-artifacts
+          path: tmp

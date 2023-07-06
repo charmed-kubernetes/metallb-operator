@@ -1,0 +1,5 @@
+ops >= 2.2.0
+lightkube>=0.10.1,<1.0.0
+pyyaml
+ops.manifest>=1.1.0,<2.0.0
+tenacity

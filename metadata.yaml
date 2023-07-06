@@ -1,0 +1,21 @@
+name: metallb
+summary: |
+  This charm deploys MetalLB in a Kubernetes model, which provides a software
+  defined load balancer.
+docs: https://discourse.charmhub.io/t/metallb/6320
+issues: https://bugs.launchpad.net/operator-metallb
+source: https://github.com/charmed-kubernetes/metallb-operator
+website: https://metallb.universe.tf/
+description: |
+  MetalLB offers a software network load balancing implementation that allows for
+  LoadBalancing services in Kubernetes. It is a young open-source project that could
+  be charmed to integrate it easily with the Canonical suite of projects. Upstream
+  documentation can be found here : https://metallb.universe.tf/.
+  The charm includes both the cluster-wide controller that handles IP address
+  assignments, along with the speaker DaemonSet that makes the services
+  reachable.
+tags:
+  - kubernetes
+  - metallb
+assumes:
+  - k8s-api

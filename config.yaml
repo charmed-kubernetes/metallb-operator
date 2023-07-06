@@ -1,0 +1,36 @@
+# This file defines charm config options, and populates the Configure tab on Charmhub.
+# If your charm does not require configuration options, delete this file entirely.
+#
+# See https://juju.is/docs/config for guidance.
+
+options:
+  namespace:
+    type: string
+    description: |
+      Namespace that the metallb resources will be installed in. This namespace will be created by the charm,
+      and should not currently exist
+    default: "metallb-system"
+
+  image-registry:
+    type: string
+    description: |
+      Image registry for metallb container images.
+      The value set here will replace the host portion of each image URL in
+      the release manifests.
+    default: "rocks.canonical.com:443/cdk"
+
+  metallb-release:
+    type: string
+    description: |
+      Specify the version of metallb to deploy. The version must be available in the upstream/metallb-native/manifests
+      directory of the charm source code in order to be deployed
+    default: "v0.13.10"
+
+  iprange:
+    type: string
+    description: |
+      Comma-separated list of CIDRs and/or IPV4 and IPV6 ranges that define the IP addresses 
+      MetalLB will assign to services
+      Example:
+        192.168.10.0/24,192.168.9.1-192.168.9.5,fc00:f853:0ccd:e799::/124
+    default: 192.168.1.240-192.168.1.247
