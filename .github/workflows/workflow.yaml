@@ -39,8 +39,8 @@ jobs:
       - name: Disable RBAC If Needed
         if: ${{ matrix.rbac == 'without RBAC' }}
         run: |
-          sg snap_microk8s -c "microk8s disable rbac"
-          sg snap_microk8s -c "microk8s status --wait-ready"
+          sudo microk8s disable rbac
+          sudo microk8s status --wait-ready
       - name: Run test
         run: sg snap_microk8s -c "tox -e integration"
       - name: Setup Debug Artifact Collection
