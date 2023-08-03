@@ -37,7 +37,7 @@ async def test_build_and_deploy(ops_test: OpsTest):
     )
 
 
-async def test_iprange_config_option(ops_test: OpsTest, client, ip_address_pool):
+async def test_iprange_config_option(ops_test: OpsTest, client, ip_address_pool, iprange):
     # test that default option is applied correctly before changing
     pool_name = f"{ops_test.model_name}-{APP_NAME}"
     pool = client.get(ip_address_pool, name=pool_name, namespace=NAMESPACE)
@@ -47,12 +47,12 @@ async def test_iprange_config_option(ops_test: OpsTest, client, ip_address_pool)
     logger.info("Updating iprange ...")
     await app.set_config(
         {
-            "iprange": "10.1.240.240-10.1.240.241",
+            "iprange": iprange,
         }
     )
     await ops_test.model.wait_for_idle(status="active", timeout=60 * 10)
     pool = client.get(ip_address_pool, name=pool_name, namespace=NAMESPACE)
-    assert pool.spec["addresses"][0] == "10.1.240.240-10.1.240.241"
+    assert pool.spec["addresses"][0] == iprange
 
 
 async def test_loadbalancer_service(ops_test: OpsTest, client, microbot_service_ip):

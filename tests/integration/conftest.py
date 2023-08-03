@@ -11,6 +11,20 @@ from lightkube.resources.core_v1 import Service
 logger = logging.getLogger(__name__)
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--iprange",
+        action="store",
+        default="10.1.240.240-10.1.240.241",
+        help="Juju controller to use",
+    )
+
+
+@pytest.fixture
+def iprange(request):
+    return request.config.getoption("--iprange")
+
+
 @pytest.fixture(scope="module")
 def client():
     return Client()
