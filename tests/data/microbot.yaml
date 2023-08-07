@@ -24,7 +24,7 @@ spec:
         app: microbot-lb
     spec:
       containers:
-      - image: dontrebootme/microbot:v1
+      - image: rocks.canonical.com:443/cdk/cdkbot/microbot-amd64:latest
         imagePullPolicy: ""
         name: microbot-lb
         ports:

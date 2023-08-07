@@ -84,8 +84,10 @@ class MetallbCharm(ops.CharmBase):
         self.native_manifest = MetallbNativeManifest(self, self.config)
         self.native_collector = Collector(self.native_manifest)
         self.client = Client(namespace=self.model.name, field_manager=self.app.name)
-        self.pool_name = f"{self.model.name}-{self.app.name}"
+        self.l2_adv_name = self.pool_name = f"{self.model.name}-{self.app.name}"
+
         # Create generic lightkube resource class for the MetalLB IPAddressPool
+        # Create generic lightkube resource class for the MetalLB L2Advertisement
         # https://metallb.universe.tf/configuration/
         self.IPAddressPool = create_namespaced_resource(
             group="metallb.io",
@@ -94,11 +96,33 @@ class MetallbCharm(ops.CharmBase):
             plural="ipaddresspools",
         )
 
+        self.L2Advertisement = create_namespaced_resource(
+            group="metallb.io",
+            version="v1beta1",
+            kind="L2Advertisement",
+            plural="l2advertisements",
+        )
+
         self.framework.observe(self.on.install, self._install_or_upgrade)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.upgrade_charm, self._install_or_upgrade)
         self.framework.observe(self.on.update_status, self._update_status)
         self.framework.observe(self.on.remove, self._cleanup)
+
+    def _confirm_resource(self, resource, name) -> bool:
+        try:
+            self.client.get(resource, name=name, namespace=self.config["namespace"])
+        except ApiError as e:
+            if "not found" in e.status.message:
+                logger.info(f"{resource.__name__} not found yet")
+                self.unit.status = WaitingStatus(f"Waiting for {resource.__name__} to be created")
+                return False
+            else:
+                # surface any other errors besides not found
+                logger.exception(e)
+                self.unit.status = WaitingStatus("Waiting for Kubernetes API")
+                return False
+        return True
 
     def _update_status(self, _):
         missing = _missing_resources(self.native_manifest)
@@ -115,20 +139,11 @@ class MetallbCharm(ops.CharmBase):
             self.unit.status = WaitingStatus(", ".join(native_unready))
             return
 
-        try:
-            self.client.get(
-                self.IPAddressPool, name=self.pool_name, namespace=self.config["namespace"]
-            )
-        except ApiError as e:
-            if "not found" in e.status.message:
-                logger.info("IPAddressPool not found yet")
-                self.unit.status = WaitingStatus("Waiting for IPAddressPool to be created")
-                return
-            else:
-                # surface any other errors besides not found
-                logger.exception(e)
-                self.unit.status = WaitingStatus("Waiting for Kubernetes API")
-                return
+        if not self._confirm_resource(self.IPAddressPool, self.pool_name):
+            return
+        if not self._confirm_resource(self.L2Advertisement, self.l2_adv_name):
+            return
+
         self.unit.status = ActiveStatus("Ready")
         self.unit.set_workload_version(self.native_collector.short_version)
         self.app.status = ActiveStatus(self.native_collector.long_version)
@@ -156,13 +171,14 @@ class MetallbCharm(ops.CharmBase):
 
         addresses = stripped.split(",")
         self._update_ip_pool(addresses)
+        self._update_l2_adv()
         self.unit.status = ActiveStatus()
 
     # retrying is necessary as the ip address pool webhooks take some time to come up
     @retry(
         retry=retry_if_exception_type(ApiError),
         reraise=True,
-        before=before_log(logger, logging.INFO),
+        before=before_log(logger, logging.DEBUG),
         wait=wait_exponential(multiplier=1, min=2, max=60 * 2),
     )
     def _update_ip_pool(self, addresses):
@@ -172,6 +188,14 @@ class MetallbCharm(ops.CharmBase):
         )
 
         self.client.apply(ip_pool, force=True)
+
+    def _update_l2_adv(self):
+        l2_adv = self.L2Advertisement(
+            metadata={"name": self.l2_adv_name, "namespace": self.config["namespace"]},
+            spec={"ipAddressPools": [self.pool_name]},
+        )
+
+        self.client.apply(l2_adv, force=True)
 
 
 if __name__ == "__main__":  # pragma: nocover

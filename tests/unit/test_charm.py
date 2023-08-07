@@ -66,11 +66,17 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
 
     # test with single ip range
     harness.update_config({"iprange": "10.1.240.240-10.1.240.241"})
-    harness.charm.on.config_changed.emit()
-    for call in lk_charm_client.apply.call_args_list:
-        call_obj = call.args[0].to_dict()
-        assert len(call_obj["spec"]["addresses"]) == 1
-        assert call_obj["spec"]["addresses"][0] == "10.1.240.240-10.1.240.241"
+    assert len(lk_charm_client.apply.call_args_list) == 2
+    apply_ip_pool_call = lk_charm_client.apply.call_args_list[0]
+    apply_l2_adv_call = lk_charm_client.apply.call_args_list[1]
+
+    call_obj = apply_ip_pool_call.args[0].to_dict()
+    assert len(call_obj["spec"]["addresses"]) == 1
+    assert call_obj["spec"]["addresses"][0] == "10.1.240.240-10.1.240.241"
+
+    call_obj = apply_l2_adv_call.args[0].to_dict()
+    assert len(call_obj["spec"]["ipAddressPools"]) == 1
+    assert call_obj["spec"]["ipAddressPools"][0] == "None-metallb"
 
     # test with multiple ranges
     lk_charm_client.reset_mock()
@@ -79,14 +85,14 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
             "iprange": "192.168.1.240-192.168.1.247,10.1.240.240-10.1.240.241,192.168.10.0/24,fc00:f853:0ccd:e799::/124"
         }
     )
-    harness.charm.on.config_changed.emit()
-    for call in lk_charm_client.apply.call_args_list:
-        call_obj = call.args[0].to_dict()
-        assert len(call_obj["spec"]["addresses"]) == 4
-        assert call_obj["spec"]["addresses"][0] == "192.168.1.240-192.168.1.247"
-        assert call_obj["spec"]["addresses"][1] == "10.1.240.240-10.1.240.241"
-        assert call_obj["spec"]["addresses"][2] == "192.168.10.0/24"
-        assert call_obj["spec"]["addresses"][3] == "fc00:f853:0ccd:e799::/124"
+    assert len(lk_charm_client.apply.call_args_list) == 2
+    apply_ip_pool_call = lk_charm_client.apply.call_args_list[0]
+    call_obj = apply_ip_pool_call.args[0].to_dict()
+    assert len(call_obj["spec"]["addresses"]) == 4
+    assert call_obj["spec"]["addresses"][0] == "192.168.1.240-192.168.1.247"
+    assert call_obj["spec"]["addresses"][1] == "10.1.240.240-10.1.240.241"
+    assert call_obj["spec"]["addresses"][2] == "192.168.10.0/24"
+    assert call_obj["spec"]["addresses"][3] == "fc00:f853:0ccd:e799::/124"
 
     # test with multiple ranges with spaces thrown in
     lk_charm_client.reset_mock()
@@ -95,19 +101,18 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
             "iprange": "  192. 168.1.240-192. 168.1.247, 10.1.240.240 -10.1.240.241,   192.168.10.0/24,fc00:f853:0ccd:e799::/124   "
         }
     )
-    harness.charm.on.config_changed.emit()
-    for call in lk_charm_client.apply.call_args_list:
-        call_obj = call.args[0].to_dict()
-        assert len(call_obj["spec"]["addresses"]) == 4
-        assert call_obj["spec"]["addresses"][0] == "192.168.1.240-192.168.1.247"
-        assert call_obj["spec"]["addresses"][1] == "10.1.240.240-10.1.240.241"
-        assert call_obj["spec"]["addresses"][2] == "192.168.10.0/24"
-        assert call_obj["spec"]["addresses"][3] == "fc00:f853:0ccd:e799::/124"
+    assert len(lk_charm_client.apply.call_args_list) == 2
+    apply_ip_pool_call = lk_charm_client.apply.call_args_list[0]
+    call_obj = apply_ip_pool_call.args[0].to_dict()
+    assert len(call_obj["spec"]["addresses"]) == 4
+    assert call_obj["spec"]["addresses"][0] == "192.168.1.240-192.168.1.247"
+    assert call_obj["spec"]["addresses"][1] == "10.1.240.240-10.1.240.241"
+    assert call_obj["spec"]["addresses"][2] == "192.168.10.0/24"
+    assert call_obj["spec"]["addresses"][3] == "fc00:f853:0ccd:e799::/124"
 
     # test with an empty range
     lk_charm_client.reset_mock()
     harness.update_config({"iprange": ""})
-    harness.charm.on.config_changed.emit()
     assert harness.charm.model.unit.status == BlockedStatus(
         "Invalid iprange: iprange must not be empty"
     )
@@ -115,7 +120,6 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
     # test with an invalid range
     lk_charm_client.reset_mock()
     harness.update_config({"iprange": "256.256.256.256-256.256.256.256,10.1.240.240-10.1.240.241"})
-    harness.charm.on.config_changed.emit()
     assert harness.charm.model.unit.status == BlockedStatus(
         "Invalid iprange: 256.256.256.256-256.256.256.256 is not a valid CIDR or ip range"
     )
@@ -123,7 +127,6 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
     # test with an invalid separator in range
     lk_charm_client.reset_mock()
     harness.update_config({"iprange": "10.1.240.240+10.1.240.241"})
-    harness.charm.on.config_changed.emit()
     assert harness.charm.model.unit.status == BlockedStatus(
         "Invalid iprange: 10.1.240.240+10.1.240.241 is not a valid CIDR or ip range"
     )
@@ -131,7 +134,6 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
     # test with an invalid CIDR
     lk_charm_client.reset_mock()
     harness.update_config({"iprange": "256.256.256.256/24"})
-    harness.charm.on.config_changed.emit()
     assert harness.charm.model.unit.status == BlockedStatus(
         "Invalid iprange: 256.256.256.256/24 is not a valid CIDR or ip range"
     )
