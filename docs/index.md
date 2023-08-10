@@ -19,26 +19,27 @@ For more information on configuring MetalLB with Calico in BGP mode, please see 
 
 |  |  |
 |--|--|
-| [Tutorials](/t/charmed-metallb-tutorial-overview/11359?channel=1.28/stable)</br>  Get started - a hands-on introduction to using Charmed Metallb operator for new users </br> |  [How-to guides](/t/charmed-metallb-documentation-how-to/####?channel=1.28/stable) </br> Step-by-step guides covering key operations and common tasks |
-| [Reference](https://charmhub.io/metallb/actions?channel=1.28/stable) </br> Technical information - specifications, APIs, architecture | [Explanation](/t/charmed-metallb-documentation/####?channel=1.28/stable) </br> Concepts - discussion and clarification of key topics  |
+| [Tutorials](/t/charmed-metallb-tutorial-overview/11359?channel=1.28/stable)</br>  Get started - a hands-on introduction to using Charmed Metallb operator for new users </br> |  [How-to guides](/t/charmed-metallb-how-to-managed-units/11363?channel=1.28/stable) </br> Step-by-step guides covering key operations and common tasks |
+| [Reference](https://charmhub.io/metallb/actions?channel=1.28/stable) </br> Technical information - specifications, APIs, architecture | [Explanation](/t/charmed-metallb-explanation/####?channel=1.28/stable) </br> Concepts - discussion and clarification of key topics  |
 
 
 # Navigation
 
-| Level | Path                 | NavLink                                                                         |
-|-------|----------------------|---------------------------------------------------------------------------------|
-| 1     | tutorial             | [Tutorial]()                                                                    |
-| 2     | t-overview           | [1. Introduction](/t/charmed-metallb-tutorial-overview/11359)                     |
-| 2     | t-setup-environment  | [2. Set up the environment](/t/charmed-metallb-tutorial-setup-environment/####)  |
-| 2     | t-deploy-metallb     | [3. Deploy MetalLB](/t/charmed-metallb-tutorial-deploy-metallb/####)             |
-| 2     | t-configure          | [4. Configure MetalLB](/t/charmed-metallb-tutorial-configure/####)               |
-| 1     | how-to               | [How To]()                                                                      |
-| 1     | reference            | [Reference]()                                                                   |
-| 2     | r-actions            | [Actions](https://charmhub.io/metallb/actions)                                  |
-| 2     | r-configurations     | [Configurations](https://charmhub.io/metallb/configure)                         |
-| 2     | r-libraries          | [Libraries](https://charmhub.io/metallb/libraries)                              |
-| 2     | r-integrations       | [Integrations](https://charmhub.io/metallb/integrations)                        |
-| 1     | explanation          | [Explanation]()                                                                 |
+| Level | Path                 | NavLink                                                                          |
+|-------|----------------------|----------------------------------------------------------------------------------|
+| 1     | tutorial             | [Tutorial]()                                                                     |
+| 2     | t-overview           | [1. Introduction](/t/charmed-metallb-tutorial-overview/11359)                    |
+| 2     | t-setup-environment  | [2. Set up the environment](/t/charmed-metallb-tutorial-setup-environment/11360) |
+| 2     | t-deploy-metallb     | [3. Deploy MetalLB](/t/charmed-metallb-tutorial-deploy-metallb/11361)            |
+| 2     | t-configure          | [4. Configure MetalLB](/t/charmed-metallb-tutorial-configure/11362)              |
+| 1     | how-to               | [How To]()                                                                       |
+| 2     | how-to               | [1. How To - Managed Units](/t/charmed-metallb-how-to-managed-units/11363)       |
+| 1     | reference            | [Reference]()                                                                    |
+| 2     | r-actions            | [Actions](https://charmhub.io/metallb/actions)                                   |
+| 2     | r-configurations     | [Configurations](https://charmhub.io/metallb/configure)                          |
+| 2     | r-libraries          | [Libraries](https://charmhub.io/metallb/libraries)                               |
+| 2     | r-integrations       | [Integrations](https://charmhub.io/metallb/integrations)                         |
+| 1     | explanation          | [Explanation]()                                                                  |
 
 # Redirects
 

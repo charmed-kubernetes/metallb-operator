@@ -11,7 +11,7 @@ This will adjust the default `IPAddressPool.spec.addresses` created by the charm
 An example single-line config adjustment might look like:
 
 ```shell
-juju deploy metallb --config iprange='192.168.1.88-192.168.1.89'
+juju deploy metallb --config iprange='192.168.1.88-192.168.1.89' --trust
 ```
 
 Alternatively, you can change the config directly on the metallb charm at any time:

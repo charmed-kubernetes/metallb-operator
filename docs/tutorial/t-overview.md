@@ -17,4 +17,4 @@ While this tutorial intends to guide and teach you as you deploy Charmed MetalLB
 Here’s an overview of the steps required with links to our separate tutorials that deal with each individual step:
 * [Set up the environment](/t/charmed-metallb-tutorial-setup-environment/11360?channel=1.28/stable)
 * [Deploy MetalLB](/t/charmed-metallb-tutorial-deploy-metallb/11361?channel=1.28/stable)
-* [Configure MetalLB](/t/charmed-metallb-tutorial-configure/####?channel=1.28/stable)
+* [Configure MetalLB](/t/charmed-metallb-tutorial-configure/11362?channel=1.28/stable)
