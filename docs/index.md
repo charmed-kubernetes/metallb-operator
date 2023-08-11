@@ -25,21 +25,22 @@ For more information on configuring MetalLB with Calico in BGP mode, please see 
 
 # Navigation
 
-| Level | Path                 | NavLink                                                                          |
-|-------|----------------------|----------------------------------------------------------------------------------|
-| 1     | tutorial             | [Tutorial]()                                                                     |
-| 2     | t-overview           | [1. Introduction](/t/charmed-metallb-tutorial-overview/11359)                    |
-| 2     | t-setup-environment  | [2. Set up the environment](/t/charmed-metallb-tutorial-setup-environment/11360) |
-| 2     | t-deploy-metallb     | [3. Deploy MetalLB](/t/charmed-metallb-tutorial-deploy-metallb/11361)            |
-| 2     | t-configure          | [4. Configure MetalLB](/t/charmed-metallb-tutorial-configure/11362)              |
-| 1     | how-to               | [How To]()                                                                       |
-| 2     | how-to               | [1. How To - Managed Units](/t/charmed-metallb-how-to-managed-units/11363)       |
-| 1     | reference            | [Reference]()                                                                    |
-| 2     | r-actions            | [Actions](https://charmhub.io/metallb/actions)                                   |
-| 2     | r-configurations     | [Configurations](https://charmhub.io/metallb/configure)                          |
-| 2     | r-libraries          | [Libraries](https://charmhub.io/metallb/libraries)                               |
-| 2     | r-integrations       | [Integrations](https://charmhub.io/metallb/integrations)                         |
-| 1     | explanation          | [Explanation]()                                                                  |
+| Level | Path                 | NavLink                                                                                         |
+|-------|----------------------|-------------------------------------------------------------------------------------------------|
+| 1     | tutorial             | [Tutorial]()                                                                                    |
+| 2     | t-overview           | [1. Introduction](/t/charmed-metallb-tutorial-overview/11359)                                   |
+| 2     | t-setup-environment  | [2. Set up the environment](/t/charmed-metallb-tutorial-setup-environment/11360)                |
+| 2     | t-deploy-metallb     | [3. Deploy MetalLB](/t/charmed-metallb-tutorial-deploy-metallb/11361)                           |
+| 2     | t-configure          | [4. Configure MetalLB](/t/charmed-metallb-tutorial-configure/11362)                             |
+| 1     | how-to               | [How To]()                                                                                      |
+| 2     | h-manage-units       | [1. Managed Units](/t/charmed-metallb-how-to-managed-units/11363)                               |
+| 2     | h-migrate-from-split | [2. Migrate From 1.27 Release](/t/charmed-metallb-how-to-migrate-from-1-27-stable-charms/11423) |
+| 1     | reference            | [Reference]()                                                                                   |
+| 2     | r-actions            | [Actions](https://charmhub.io/metallb/actions)                                                  |
+| 2     | r-configurations     | [Configurations](https://charmhub.io/metallb/configure)                                         |
+| 2     | r-libraries          | [Libraries](https://charmhub.io/metallb/libraries)                                              |
+| 2     | r-integrations       | [Integrations](https://charmhub.io/metallb/integrations)                                        |
+| 1     | explanation          | [Explanation]()                                                                                 |
 
 # Redirects
 
