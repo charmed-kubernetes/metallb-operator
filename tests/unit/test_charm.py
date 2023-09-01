@@ -92,7 +92,7 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
     assert call_obj["spec"]["addresses"][0] == "192.168.1.240-192.168.1.247"
     assert call_obj["spec"]["addresses"][1] == "10.1.240.240-10.1.240.241"
     assert call_obj["spec"]["addresses"][2] == "192.168.10.0/24"
-    assert call_obj["spec"]["addresses"][3] == "fc00:f853:0ccd:e799::/124"
+    assert call_obj["spec"]["addresses"][3] == "fc00:f853:ccd:e799::/124"
 
     # test with multiple ranges with spaces thrown in
     lk_charm_client.reset_mock()
@@ -108,7 +108,7 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
     assert call_obj["spec"]["addresses"][0] == "192.168.1.240-192.168.1.247"
     assert call_obj["spec"]["addresses"][1] == "10.1.240.240-10.1.240.241"
     assert call_obj["spec"]["addresses"][2] == "192.168.10.0/24"
-    assert call_obj["spec"]["addresses"][3] == "fc00:f853:0ccd:e799::/124"
+    assert call_obj["spec"]["addresses"][3] == "fc00:f853:ccd:e799::/124"
 
     # test with an empty range
     lk_charm_client.reset_mock()
