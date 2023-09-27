@@ -5,6 +5,7 @@ With the charms available through `1.27/stable` channels, one would typically cr
 Starting in `1.28/stable`, this two charm deployment has been unified into a single charm which applies the upstream manifests into the system and manages those manifests, rather than directly managing the sidecar containers. The following is the process to use this new charm.
 
 ## Basic Steps
+
 First create a new model (call it whatever is preferred) so long as it is not named `metallb-system` and deploy the charm into that model.
 
 ```shell
