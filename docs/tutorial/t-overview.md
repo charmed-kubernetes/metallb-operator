@@ -1,7 +1,6 @@
 # Charmed MetalLB tutorial
 The Charmed MetalLB Operator delivers automated operations management from day 0 to day 2
-on the [MetalLB Load Balancer Implementation for Bare Metal Kubernetes](https://metallb.universe.tf/).
-It is an open source, production-ready charm on top of [Juju](https://juju.is/)
+on the [MetalLB Load Balancer Implementation for Bare Metal Kubernetes](https://metallb.universe.tf/). It is an open source, production-ready charm on top of [Juju](https://juju.is/)
 
 As a first step this tutorial shows you how to get Charmed MetalLB up and running, but the tutorial does not stop there. In this tutorial we will walk through how to:
 - Set up an environment using Kubernetes and [Juju](https://juju.is/).

@@ -1,5 +1,4 @@
 # Environment Setup
-
 This is part of the [Charmed MetalLB Tutorial](/t/charmed-metalb-tutorial-overview/11359?channel=1.28/stable). Please refer to this page for more information and the overview of the content.
 
 ## Minimum requirements

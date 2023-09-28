@@ -19,4 +19,3 @@ Alternatively, you can change the config directly on the metallb charm at any ti
 ```shell
 juju config metallb iprange="192.168.1.240/28, 10.0.0.0/28"
 ```
-
