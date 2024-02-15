@@ -1,0 +1,18 @@
+# Architectures based on supported arch's in upstream
+# https://hub.docker.com/layers/bitnami/metallb-controller/0.13.10/images/sha256-d9bbb30d02d02ad499a8390105ebe5b94c5fd9086da9591f4e88b7855a9f5e46?context=explore
+type: charm
+bases:
+  - build-on:
+    - name: "ubuntu"
+      channel: "20.04"
+      architectures: ["amd64"]
+    run-on:
+    - name: "ubuntu"
+      channel: "22.04"
+      architectures:
+        - amd64
+        - arm64
+parts:
+  charm:
+    prime:
+      - upstream/**
