@@ -1,5 +1,7 @@
 # MetalLB Operator
 
+[![Get it from the Charmhub](https://charmhub.io/metallb/badge.svg)](https://charmhub.io/metallb)
+
 ## Overview
 
 MetalLB offers a software network load balancing implementation that allows for
