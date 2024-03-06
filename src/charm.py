@@ -6,6 +6,8 @@
 
 import ipaddress
 import logging
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 import ops
 from lightkube import Client
@@ -14,7 +16,7 @@ from lightkube.generic_resource import create_namespaced_resource
 from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.main import main
 from ops.manifests import Collector, Manifests
-from tenacity import before_log, retry, retry_if_exception_type, wait_exponential
+from tenacity import before_log, retry, retry_if_exception_type, stop_after_delay, wait_exponential
 
 from metallb_manifests import MetallbNativeManifest
 
@@ -29,46 +31,56 @@ def _missing_resources(manifest: Manifests):
     return missing
 
 
-def _is_ip_address(str_to_test):
-    try:
-        ipaddress.ip_address(str_to_test)
-        return True
-    except ValueError:
-        return False
+BaseAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
+BaseNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 
 
-def _is_ip_address_range(str_to_test):
-    addresses = str_to_test.split("-")
-    if len(addresses) != 2:
-        return False
+@dataclass
+class IPRange:
+    addresses: List[str]
 
-    for address in addresses:
-        if not _is_ip_address(address):
-            return False
+    @staticmethod
+    def _to_ip_address(test: str) -> BaseAddress | None:
+        try:
+            return ipaddress.ip_address(test)
+        except ValueError:
+            return None
 
-    return True
+    @staticmethod
+    def _to_address_range(test: str) -> Tuple[BaseAddress, BaseAddress] | None:
+        addresses = test.split("-")
+        if len(addresses) != 2:
+            return None
 
+        addresses = [IPRange._to_ip_address(_) for _ in addresses]
+        addresses = [_ for _ in addresses if _ is not None]
+        if len(addresses) != 2:
+            return None
 
-def _is_cidr(str_to_test):
-    try:
-        ipaddress.ip_network(str_to_test)
-        return True
-    except ValueError:
-        return False
+        return tuple(addresses)
 
+    @staticmethod
+    def _to_cidr(str_to_test) -> BaseNetwork | None:
+        try:
+            return ipaddress.ip_network(str_to_test)
+        except ValueError:
+            return None
 
-def validate_iprange(iprange):
-    if not iprange:
-        return False, "iprange must not be empty"
+    @classmethod
+    def parse(cls, iprange: str) -> Tuple[Optional["IPRange"], str]:
+        if not iprange:
+            return None, "iprange must not be empty"
+        ranges = []
+        items = iprange.split(",")
+        for item in items:
+            if ip_range := cls._to_address_range(item):
+                ranges.append("-".join(map(str, ip_range)))
+            elif cidr := cls._to_cidr(item):
+                ranges.append(str(cidr))
+            else:
+                return None, f"{item} is not a valid CIDR or ip range"
 
-    items = iprange.split(",")
-    for item in items:
-        is_ip_range = _is_ip_address_range(item)
-        is_cidr = _is_cidr(item)
-        if not is_ip_range and not is_cidr:
-            return False, f"{item} is not a valid CIDR or ip range"
-
-    return True, ""
+        return cls(ranges), ""
 
 
 class MetallbCharm(ops.CharmBase):
@@ -162,15 +174,14 @@ class MetallbCharm(ops.CharmBase):
         logger.info("Updating MetalLB IPAddressPool to reflect charm configuration")
         # strip all whitespace from string
         stripped = "".join(self.config["iprange"].split())
-        valid_iprange, msg = validate_iprange(stripped)
-        if not valid_iprange:
-            err_msg = f"Invalid iprange: {msg}"
+        iprange, err = IPRange.parse(stripped)
+        if not iprange:
+            err_msg = f"Invalid iprange: {err}"
             logger.error(err_msg)
             self.unit.status = BlockedStatus(err_msg)
             return
 
-        addresses = stripped.split(",")
-        self._update_ip_pool(addresses)
+        self._update_ip_pool(iprange.addresses)
         self._update_l2_adv()
         self.unit.status = ActiveStatus()
 
@@ -179,7 +190,8 @@ class MetallbCharm(ops.CharmBase):
         retry=retry_if_exception_type(ApiError),
         reraise=True,
         before=before_log(logger, logging.DEBUG),
-        wait=wait_exponential(multiplier=1, min=2, max=60 * 2),
+        wait=wait_exponential(multiplier=1, min=2, max=15),
+        stop=stop_after_delay(60 * 5),
     )
     def _update_ip_pool(self, addresses):
         ip_pool = self.IPAddressPool(
