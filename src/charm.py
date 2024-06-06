@@ -51,6 +51,8 @@ def _is_ip_address_range(str_to_test):
 
 
 def _is_cidr(str_to_test):
+    if str_to_test.count("/") != 1:
+        return False
     try:
         ipaddress.ip_network(str_to_test)
         return True

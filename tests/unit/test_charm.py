@@ -138,6 +138,13 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
         "Invalid iprange: 256.256.256.256/24 is not a valid CIDR or ip range"
     )
 
+    # test with an invalid Address
+    lk_charm_client.reset_mock()
+    harness.update_config({"iprange": "192.168.1.2"})
+    assert harness.charm.model.unit.status == BlockedStatus(
+        "Invalid iprange: 192.168.1.2 is not a valid CIDR or ip range"
+    )
+
 
 def test_remove_deletes_manifest_objects(harness, lk_manifests_client):
     # Test that the remove-handler deletes the objects specified in the manifest
