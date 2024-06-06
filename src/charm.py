@@ -89,6 +89,8 @@ def _block_on_forbidden(unit: ops.model.Unit):
 class MetallbCharm(ops.CharmBase):
     """Charm the service."""
 
+    _stored = ops.StoredState()
+
     def __init__(self, *args):
         super().__init__(*args)
         if not self.unit.is_leader():
@@ -119,10 +121,11 @@ class MetallbCharm(ops.CharmBase):
         )
 
         self.framework.observe(self.on.install, self._install_or_upgrade)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.upgrade_charm, self._install_or_upgrade)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.update_status, self._update_status)
         self.framework.observe(self.on.remove, self._cleanup)
+        self._stored.set_default(configured=False)
 
     def _confirm_resource(self, resource, name) -> bool:
         try:
@@ -140,6 +143,10 @@ class MetallbCharm(ops.CharmBase):
         return True
 
     def _update_status(self, _):
+        if not self._stored.configured:
+            logger.info("Waiting for configuration to be applied")
+            return
+
         missing = _missing_resources(self.native_manifest)
         if len(missing) != 0:
             logger.error("missing MetalLB resources: %s", missing)
@@ -171,10 +178,11 @@ class MetallbCharm(ops.CharmBase):
         self.unit.status = MaintenanceStatus("Cleaning up MetalLB resources")
         with _block_on_forbidden(self.unit):
             self.native_manifest.delete_manifests(ignore_unauthorized=True, ignore_not_found=True)
-        self.unit.status = MaintenanceStatus("Shutting down")
+            self.unit.status = MaintenanceStatus("Shutting down")
 
     def _on_config_changed(self, event):
         logger.info("Updating MetalLB IPAddressPool to reflect charm configuration")
+        self._stored.configured = False
         # strip all whitespace from string
         stripped = "".join(self.config["iprange"].split())
         valid_iprange, msg = validate_iprange(stripped)
@@ -191,6 +199,7 @@ class MetallbCharm(ops.CharmBase):
             self.unit.status = MaintenanceStatus("Updating Configuration")
             self._update_ip_pool(addresses)
             self._update_l2_adv()
+            self._stored.configured = True
             self._update_status(event)
 
     # retrying is necessary as the ip address pool webhooks take some time to come up
