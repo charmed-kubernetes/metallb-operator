@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # Copyright 2023 Stone
 # See LICENSE file for licensing details.
-import asyncio
 import logging
 from pathlib import Path
 
 import aiohttp
+import juju.application
+import juju.unit
 import pytest
 import yaml
 from pytest_operator.plugin import OpsTest
@@ -25,16 +26,22 @@ async def test_build_and_deploy(ops_test: OpsTest):
     """
     # Build and deploy charm from local source folder
     charm = await ops_test.build_charm(".")
+    model = ops_test.model
 
     # Deploy the charm and wait for active/idle status
-    await asyncio.gather(
-        ops_test.model.deploy(
-            charm, application_name=APP_NAME, trust=True, config={"namespace": NAMESPACE}
-        ),
-        ops_test.model.wait_for_idle(
-            apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=1500
-        ),
+    await model.deploy(charm, application_name=APP_NAME, config={"namespace": NAMESPACE}),
+    await model.block_until(
+        lambda: APP_NAME in model.applications,  # application is present
+        lambda: model.applications[APP_NAME].status in ("active", "blocked"),
+        timeout=1500,
     )
+    await model.wait_for_idle(apps=[APP_NAME])
+    metal_lb: juju.application.Application = model.applications[APP_NAME]
+    if metal_lb.units[0].workload_status == "blocked":
+        # The charm is blocked because it requires the --trust flag to be deployed
+        assert "deploy with --trust" in metal_lb.units[0].workload_status_message
+        await metal_lb.set_trusted(True)
+        await model.wait_for_idle(apps=[APP_NAME], status="active")
 
 
 async def test_iprange_config_option(ops_test: OpsTest, client, ip_address_pool, iprange):

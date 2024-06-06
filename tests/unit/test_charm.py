@@ -168,9 +168,9 @@ def test_update_status(harness, lk_manifests_client, lk_charm_client):
     harness.begin()
 
     # With nothing mocked, all resources will appear as missing
+    harness.charm.model.unit.status = expected = BlockedStatus("unchanged on missing")
     harness.charm.on.update_status.emit()
-    assert "missing" in harness.charm.model.unit.status.message
-    assert harness.charm.model.unit.status.name == "blocked"
+    assert harness.charm.model.unit.status == expected
 
     # mock to get past missing resources code path
     with mock.patch("charm._missing_resources", autospec=True) as mock_missing:
