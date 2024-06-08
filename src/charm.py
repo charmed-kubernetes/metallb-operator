@@ -50,12 +50,11 @@ def _is_ip_address_range(str_to_test):
     return True
 
 
-def _is_cidr(str_to_test):
-    if str_to_test.count("/") != 1:
-        return False
+def _is_cidr(str_to_test: str) -> bool:
     try:
         ipaddress.ip_network(str_to_test)
-        return True
+        # prevent strings which don't end in '/<subnet>'
+        return not _is_ip_address(str_to_test)
     except ValueError:
         return False
 
@@ -81,7 +80,7 @@ def _block_on_forbidden(unit: ops.model.Unit):
     except (ApiError, ManifestClientError) as ex:
         http = ex.args[1] if isinstance(ex, ManifestClientError) else ex
         if http.status.code == 403:
-            unit.status = BlockedStatus("API Access Forbidden, deploy with --trust")
+            unit.status = BlockedStatus("API Access Forbidden, deploy with --trust?")
         else:
             raise
 

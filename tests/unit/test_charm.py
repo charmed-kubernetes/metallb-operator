@@ -138,7 +138,7 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
         "Invalid iprange: 256.256.256.256/24 is not a valid CIDR or ip range"
     )
 
-    # test with an invalid Address
+    # test with an address without the cidr range is invalid
     lk_charm_client.reset_mock()
     harness.update_config({"iprange": "192.168.1.2"})
     assert harness.charm.model.unit.status == BlockedStatus(
@@ -176,7 +176,7 @@ def test_update_status(harness, lk_manifests_client, lk_charm_client):
 
     # With nothing mocked, all resources will appear as missing
     harness.charm._stored.configured = True
-    harness.charm.model.unit.status = expected = BlockedStatus("unchanged on missing")
+    harness.charm.model.unit.status = expected = BlockedStatus("TeSt BlOcKeD MeSsAgE")
     harness.charm.on.update_status.emit()
     assert harness.charm.model.unit.status == expected
 
