@@ -4,6 +4,7 @@
 #
 # Learn more at: https://juju.is/docs/sdk
 
+import contextlib
 import ipaddress
 import logging
 
@@ -13,8 +14,8 @@ from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
 from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.main import main
-from ops.manifests import Collector, Manifests
-from tenacity import before_log, retry, retry_if_exception_type, wait_exponential
+from ops.manifests import Collector, ManifestClientError, Manifests
+from tenacity import before_log, retry, retry_if_exception_type, stop_after_delay, wait_exponential
 
 from metallb_manifests import MetallbNativeManifest
 
@@ -49,10 +50,11 @@ def _is_ip_address_range(str_to_test):
     return True
 
 
-def _is_cidr(str_to_test):
+def _is_cidr(str_to_test: str) -> bool:
     try:
         ipaddress.ip_network(str_to_test)
-        return True
+        # prevent strings which don't end in '/<subnet>'
+        return not _is_ip_address(str_to_test)
     except ValueError:
         return False
 
@@ -71,8 +73,22 @@ def validate_iprange(iprange):
     return True, ""
 
 
+@contextlib.contextmanager
+def _block_on_forbidden(unit: ops.model.Unit):
+    try:
+        yield
+    except (ApiError, ManifestClientError) as ex:
+        http = ex.args[1] if isinstance(ex, ManifestClientError) else ex
+        if http.status.code == 403:
+            unit.status = BlockedStatus("API Access Forbidden, deploy with --trust?")
+        else:
+            raise
+
+
 class MetallbCharm(ops.CharmBase):
     """Charm the service."""
+
+    _stored = ops.StoredState()
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -104,10 +120,11 @@ class MetallbCharm(ops.CharmBase):
         )
 
         self.framework.observe(self.on.install, self._install_or_upgrade)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.upgrade_charm, self._install_or_upgrade)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.update_status, self._update_status)
         self.framework.observe(self.on.remove, self._cleanup)
+        self._stored.set_default(configured=False)
 
     def _confirm_resource(self, resource, name) -> bool:
         try:
@@ -125,17 +142,18 @@ class MetallbCharm(ops.CharmBase):
         return True
 
     def _update_status(self, _):
+        if not self._stored.configured:
+            logger.info("Waiting for configuration to be applied")
+            return
+
         missing = _missing_resources(self.native_manifest)
         if len(missing) != 0:
-            logger.error(f"missing MetalLB resources: {missing}")
-            self.unit.status = BlockedStatus(
-                "missing \n".join(sorted(str(rsc) for rsc in missing))
-            )
+            logger.error("missing MetalLB resources: %s", missing)
             return
 
         native_unready = self.native_collector.unready
         if native_unready:
-            logger.warning(f"Unready MetalLB resources: {native_unready}")
+            logger.warning("Unready MetalLB resources: %s", native_unready)
             self.unit.status = WaitingStatus(", ".join(native_unready))
             return
 
@@ -150,16 +168,20 @@ class MetallbCharm(ops.CharmBase):
 
     def _install_or_upgrade(self, event):
         logger.info("Installing MetalLB native manifest resources ...")
-        self.native_manifest.apply_manifests()
-        logger.info("MetalLB native manifest has been installed")
+        with _block_on_forbidden(self.unit):
+            self.native_manifest.apply_manifests()
+            self.unit.status = WaitingStatus("Waiting for MetalLB resources to be configured")
+            logger.info("MetalLB native manifest has been installed")
 
     def _cleanup(self, event):
         self.unit.status = MaintenanceStatus("Cleaning up MetalLB resources")
-        self.native_manifest.delete_manifests(ignore_unauthorized=True, ignore_not_found=True)
-        self.unit.status = MaintenanceStatus("Shutting down")
+        with _block_on_forbidden(self.unit):
+            self.native_manifest.delete_manifests(ignore_unauthorized=True, ignore_not_found=True)
+            self.unit.status = MaintenanceStatus("Shutting down")
 
     def _on_config_changed(self, event):
         logger.info("Updating MetalLB IPAddressPool to reflect charm configuration")
+        self._stored.configured = False
         # strip all whitespace from string
         stripped = "".join(self.config["iprange"].split())
         valid_iprange, msg = validate_iprange(stripped)
@@ -170,15 +192,21 @@ class MetallbCharm(ops.CharmBase):
             return
 
         addresses = stripped.split(",")
-        self._update_ip_pool(addresses)
-        self._update_l2_adv()
-        self.unit.status = ActiveStatus()
+        with _block_on_forbidden(self.unit):
+            self.unit.status = MaintenanceStatus("Updating Manifests")
+            self.native_manifest.apply_manifests()
+            self.unit.status = MaintenanceStatus("Updating Configuration")
+            self._update_ip_pool(addresses)
+            self._update_l2_adv()
+            self._stored.configured = True
+            self._update_status(event)
 
     # retrying is necessary as the ip address pool webhooks take some time to come up
     @retry(
         retry=retry_if_exception_type(ApiError),
+        stop=stop_after_delay(60 * 5),
         reraise=True,
-        before=before_log(logger, logging.DEBUG),
+        before=before_log(logger, logging.WARNING),
         wait=wait_exponential(multiplier=1, min=2, max=60 * 2),
     )
     def _update_ip_pool(self, addresses):

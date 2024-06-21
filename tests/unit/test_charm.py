@@ -138,6 +138,13 @@ def test_config_change_updates_ip_pool(harness, lk_charm_client):
         "Invalid iprange: 256.256.256.256/24 is not a valid CIDR or ip range"
     )
 
+    # test with an address without the cidr range is invalid
+    lk_charm_client.reset_mock()
+    harness.update_config({"iprange": "192.168.1.2"})
+    assert harness.charm.model.unit.status == BlockedStatus(
+        "Invalid iprange: 192.168.1.2 is not a valid CIDR or ip range"
+    )
+
 
 def test_remove_deletes_manifest_objects(harness, lk_manifests_client):
     # Test that the remove-handler deletes the objects specified in the manifest
@@ -168,9 +175,10 @@ def test_update_status(harness, lk_manifests_client, lk_charm_client):
     harness.begin()
 
     # With nothing mocked, all resources will appear as missing
+    harness.charm._stored.configured = True
+    harness.charm.model.unit.status = expected = BlockedStatus("TeSt BlOcKeD MeSsAgE")
     harness.charm.on.update_status.emit()
-    assert "missing" in harness.charm.model.unit.status.message
-    assert harness.charm.model.unit.status.name == "blocked"
+    assert harness.charm.model.unit.status == expected
 
     # mock to get past missing resources code path
     with mock.patch("charm._missing_resources", autospec=True) as mock_missing:
