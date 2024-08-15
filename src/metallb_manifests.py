@@ -66,12 +66,26 @@ class PatchNamespace(Patch):
             return
 
 
+class PatchNodeSelector(Patch):
+    def __call__(self, obj: AnyResource):
+        node_selector: str = self.manifests.config.get("node-selector")
+        parsed = dict(
+            selector.split("=", 1)
+            for selector in node_selector.split()
+            if selector and "=" in selector
+        )
+        if obj.kind == "DaemonSet" or obj.kind == "Deployment":
+            logger.info(f"Patching nodeSelector for {obj.kind} {obj.metadata.name}")
+            obj.spec.template.spec.nodeSelector = parsed
+
+
 class MetallbNativeManifest(Manifests):
     def __init__(self, charm, charm_config):
         manipulations = [
             ManifestLabel(self),
             ConfigRegistry(self),
             PatchNamespace(self),
+            PatchNodeSelector(self),
         ]
 
         super().__init__("metallb", charm.model, "upstream/metallb-native", manipulations)

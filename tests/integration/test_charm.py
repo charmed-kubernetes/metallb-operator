@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2023 Stone
 # See LICENSE file for licensing details.
+import datetime
 import logging
 from pathlib import Path
 
@@ -9,7 +10,9 @@ import juju.application
 import juju.unit
 import pytest
 import yaml
+from lightkube.resources.core_v1 import Pod
 from pytest_operator.plugin import OpsTest
+from tenacity import after_log, retry, stop_after_delay, wait_fixed
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +28,16 @@ async def test_build_and_deploy(ops_test: OpsTest):
     Assert on the unit status before any relations/configurations take place.
     """
     # Build and deploy charm from local source folder
-    charm = await ops_test.build_charm(".")
-    model = ops_test.model
+    charm = next(Path().glob("metallb*.charm"), None)
+    if not charm:
+        logger.info("Building charm")
+        charm = await ops_test.build_charm(".")
 
     # Deploy the charm and wait for active/idle status
-    await model.deploy(charm, application_name=APP_NAME, config={"namespace": NAMESPACE}),
+    model = ops_test.model
+    await model.deploy(
+        charm.resolve(), application_name=APP_NAME, config={"namespace": NAMESPACE}
+    ),
     await model.block_until(
         lambda: APP_NAME in model.applications,  # application is present
         lambda: model.applications[APP_NAME].status in ("active", "blocked"),
@@ -62,9 +70,29 @@ async def test_iprange_config_option(ops_test: OpsTest, client, ip_address_pool,
     assert pool.spec["addresses"][0] == iprange
 
 
-async def test_loadbalancer_service(ops_test: OpsTest, client, microbot_service_ip):
+@pytest.mark.usefixtures("ops_test", "client")
+async def test_loadbalancer_service(microbot_service_ip):
     logger.info("Testing microbot load balancer service")
     timeout = aiohttp.ClientTimeout(connect=30)
     async with aiohttp.request("GET", f"http://{microbot_service_ip}", timeout=timeout) as resp:
         logger.info(f"response: {resp}")
         assert resp.status == 200
+
+
+@retry(stop=stop_after_delay(60 * 5), wait=wait_fixed(5), after=after_log(logger, logging.INFO))
+def wait_for_new(client, begin, resource, *_, **kwargs):
+    for obj in client.list(resource, **kwargs):
+        if obj.metadata.creationTimestamp < begin:
+            raise Exception(f"Found {resource} created at {obj.metadata.creationTimestamp}")
+
+
+async def test_node_selector(ops_test: OpsTest, client):
+    begin = datetime.datetime.now(tz=datetime.timezone.utc)
+    extended = "kubernetes.io/os=linux kubernetes.io/arch=amd64"
+
+    await ops_test.model.applications[APP_NAME].set_config({"node-selector": extended})
+    await ops_test.model.wait_for_idle(status="active", timeout=60 * 5)
+    wait_for_new(client, begin, Pod, namespace=NAMESPACE, labels={"app": "metallb"})
+    for pod in client.list(Pod, namespace=NAMESPACE, labels={"app": "metallb"}):
+        assert pod.spec.nodeSelector["kubernetes.io/arch"] == "amd64"
+        assert pod.spec.nodeSelector["kubernetes.io/os"] == "linux"
