@@ -30,12 +30,16 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+      - name: Read charmcraft version file
+        id: charmcraft
+        run: echo "channel=$(cat .charmcraft-channel)" >> $GITHUB_OUTPUT
       - name: Setup operator environment
         uses: charmed-kubernetes/actions-operator@main
         with:
           provider: microk8s
           channel: 1.31-strict/stable
           juju-channel: 3/stable
+          charmcraft-channel: ${{ steps.charmcraft.outputs.channel }}
       - name: Disable RBAC If Needed
         if: ${{ matrix.rbac == 'without RBAC' }}
         run: |
