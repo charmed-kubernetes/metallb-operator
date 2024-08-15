@@ -26,6 +26,19 @@ options:
       directory of the charm source code in order to be deployed
     default: "v0.13.10"
 
+  node-selector:
+    type: string
+    description: |
+      Node selector to use for the metallb controller and speaker pods. This is a string of key=value pairs
+      separated by spaces that will be used to select the nodes that the metallb pods will be deployed on.
+      
+      See upstream docs:
+      https://metallb.universe.tf/configuration/_advanced_bgp_configuration/
+
+      Example:
+        kubernetes.io/hostname=worker1
+    default: "kubernetes.io/os=linux"
+
   iprange:
     type: string
     description: |
