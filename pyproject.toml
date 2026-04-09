@@ -46,3 +46,5 @@ ignore = ['D100', 'E501', 'D103', 'D107', 'D101', 'D102', 'W503']
 
 [tool.isort]
 line_length = 120
+[tool.bandit]
+exclude_dirs = [".tox", ".venv", "venv"]
