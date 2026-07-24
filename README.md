@@ -20,7 +20,7 @@ first installed. This namespace will be created by the charm and should not exis
 It defaults to `metallb-system`, as this is the upstream default. 
 
 The `image-registry` config option sets the image registry used for any MetalLB pods. It defaults to 
-`rocks.canonical.com:443/cdk`. Note that this charm is workload-less, so there are no OCI-image resources associated with
+`ghcr.io/canonical/cdk`. Note that this charm is workload-less, so there are no OCI-image resources associated with
 it, as the charm simply applies a manifest via the Kubernetes API. You will need to use a registry that contains 
 the speaker and controller images required by the upstream manifest. 
 
