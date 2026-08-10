@@ -34,55 +34,12 @@ jobs:
         id: charmcraft
         run: echo "channel=$(cat .charmcraft-channel)" >> $GITHUB_OUTPUT
       - name: Setup operator environment
-        id: setup-operator-environment
-        continue-on-error: true
         uses: charmed-kubernetes/actions-operator@ea90ed489690bf3b1c1fcca6ac5f9edab70aecb0 # main
         with:
           provider: microk8s
           channel: 1.31-strict/stable
           juju-channel: 3/stable
           charmcraft-channel: ${{ steps.charmcraft.outputs.channel }}
-      - name: Recover setup when MicroK8s addon startup races
-        if: ${{ steps.setup-operator-environment.outcome == 'failure' }}
-        run: |
-          set -euxo pipefail
-
-          retry_rollout() {
-            local resource="$1"
-            local attempts="${2:-18}"
-            local sleep_seconds="${3:-10}"
-            for _ in $(seq 1 "${attempts}"); do
-              if sudo microk8s.kubectl -n kube-system rollout status "${resource}" --timeout=20s; then
-                return 0
-              fi
-              sleep "${sleep_seconds}"
-            done
-            return 1
-          }
-
-          sudo microk8s status --wait-ready --timeout=600
-          retry_rollout "daemonset/calico-node"
-          retry_rollout "deployment/coredns"
-          retry_rollout "deployment/hostpath-provisioner"
-
-          controller_name="github-pr-${GITHUB_SHA::5}-microk8s"
-          if ! juju controllers --format=json | jq -e ".controllers.\"${controller_name}\"" > /dev/null; then
-            sudo -g snap_microk8s -E juju bootstrap --debug --verbose microk8s "${controller_name}" \
-              --model-default test-mode=true \
-              --model-default automatically-retry-hooks=false \
-              --model-default 'logging-config=<root>=DEBUG'
-          fi
-          sudo -g snap_microk8s -E juju add-model testing || true
-          sudo snap install kubectl --classic || true
-          mkdir -p "${HOME}/.kube"
-          sudo -g snap_microk8s -E microk8s config > "${HOME}/.kube/config"
-          echo "CONTROLLER_NAME=${controller_name}" >> "${GITHUB_ENV}"
-      - name: Validate recovered setup
-        if: ${{ steps.setup-operator-environment.outcome == 'failure' }}
-        run: |
-          set -euo pipefail
-          sudo microk8s.kubectl -n kube-system get pods
-          juju status
       - name: Disable RBAC If Needed
         if: ${{ matrix.rbac == 'without RBAC' }}
         run: |
