@@ -17,7 +17,7 @@ options:
       Image registry for metallb container images.
       The value set here will replace the host portion of each image URL in
       the release manifests.
-    default: "rocks.canonical.com:443/cdk"
+    default: "ghcr.io/canonical/cdk"
 
   metallb-release:
     type: string
