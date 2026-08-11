@@ -37,7 +37,7 @@ jobs:
         uses: charmed-kubernetes/actions-operator@ea90ed489690bf3b1c1fcca6ac5f9edab70aecb0 # main
         with:
           provider: microk8s
-          channel: 1.31-strict/stable
+          channel: 1.35-strict/stable
           juju-channel: 3/stable
           charmcraft-channel: ${{ steps.charmcraft.outputs.channel }}
       - name: Disable RBAC If Needed
