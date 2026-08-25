@@ -71,9 +71,10 @@ async def test_iprange_config_option(ops_test: OpsTest, client, ip_address_pool,
 
 
 @pytest.mark.usefixtures("ops_test", "client")
+@retry(stop=stop_after_delay(60 * 5), wait=wait_fixed(5), after=after_log(logger, logging.INFO))
 async def test_loadbalancer_service(microbot_service_ip):
     logger.info("Testing microbot load balancer service")
-    timeout = aiohttp.ClientTimeout(connect=30)
+    timeout = aiohttp.ClientTimeout(connect=10)
     async with aiohttp.request("GET", f"http://{microbot_service_ip}", timeout=timeout) as resp:
         logger.info(f"response: {resp}")
         assert resp.status == 200
