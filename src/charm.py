@@ -9,12 +9,15 @@ import ipaddress
 import logging
 
 import ops
+import yaml
 from lightkube import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
+from lightkube.resources.apps_v1 import Deployment
 from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.main import main
 from ops.manifests import Collector, ManifestClientError, Manifests
+from ops.manifests.literals import MANIFEST_VERSION_LABEL
 from tenacity import before_log, retry, retry_if_exception_type, stop_after_delay, wait_exponential
 
 from metallb_manifests import MetallbNativeManifest
@@ -36,11 +39,17 @@ def _missing_resources(manifest: Manifests):
 LEGACY_ADDRESS_POOL_CRD = "addresspools.metallb.io"
 
 
-def _serves_legacy_address_pools(manifest: Manifests) -> bool:
-    return any(
-        rsc.kind == "CustomResourceDefinition" and rsc.name == LEGACY_ADDRESS_POOL_CRD
-        for rsc in manifest.resources
-    )
+def _serves_legacy_address_pools(manifest: Manifests, release: str) -> bool:
+    """Whether the bundled release ships the legacy AddressPool CRD."""
+    for path in sorted((manifest.manifest_path / release).glob("*.yaml")):
+        for rsc in yaml.safe_load_all(path.read_text()):
+            if (
+                rsc
+                and rsc.get("kind") == "CustomResourceDefinition"
+                and rsc["metadata"]["name"] == LEGACY_ADDRESS_POOL_CRD
+            ):
+                return True
+    return False
 
 
 def _is_ip_address(str_to_test):
@@ -146,7 +155,7 @@ class MetallbCharm(ops.CharmBase):
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.update_status, self._update_status)
         self.framework.observe(self.on.remove, self._cleanup)
-        self._stored.set_default(configured=False)
+        self._stored.set_default(configured=False, legacy_pools_blocked=False)
 
     def _confirm_resource(self, resource, name) -> bool:
         try:
@@ -163,7 +172,13 @@ class MetallbCharm(ops.CharmBase):
                 return False
         return True
 
-    def _update_status(self, _):
+    def _update_status(self, event):
+        if self._stored.legacy_pools_blocked:
+            # Re-evaluate the AddressPool guard, so the charm recovers by itself once the
+            # user has migrated the objects. This applies the release when they are gone.
+            self._on_config_changed(event)
+            return
+
         if not self._stored.configured:
             logger.info("Waiting for configuration to be applied")
             return
@@ -188,19 +203,42 @@ class MetallbCharm(ops.CharmBase):
         self.unit.set_workload_version(self.native_collector.short_version)
         self.app.status = ActiveStatus(self.native_collector.long_version)
 
+    def _deployed_release(self) -> str:
+        """Release applied by this charm to the running controller, or "" if unknown."""
+        try:
+            controller = self.client.get(
+                Deployment, "controller", namespace=self.config["namespace"]
+            )
+        except ApiError as e:
+            if e.status.code == 404:
+                return ""
+            raise
+        label = (controller.metadata.labels or {}).get(MANIFEST_VERSION_LABEL, "")
+        prefix = f"{self.native_manifest.name}-"
+        return label.split(prefix, 1)[1] if label.startswith(prefix) else ""
+
     def _legacy_pools_block_release(self) -> bool:
-        """Refuse releases which no longer honour AddressPool objects still in the cluster.
+        """Refuse a release change which would orphan legacy AddressPool objects.
 
         MetalLB stopped allocating from the legacy AddressPool API in v0.14.2 and
-        stopped shipping its CRD in v0.14.3. Applying such a release leaves existing
-        AddressPool objects in place but inert, so services allocated from them would
-        silently lose their addresses. Block instead, and never delete user objects.
+        stopped shipping its CRD in v0.14.3. Moving a cluster from a release that serves
+        AddressPool to one that does not leaves existing AddressPool objects in place but
+        inert, so services allocated from them would silently lose their addresses. Block
+        instead, and never delete user objects.
+
+        The charm never prunes the legacy CRD, so AddressPool objects can still be created
+        later. They do not matter once the controller already runs a release without the
+        API, as the objects are inert already and blocking would only stop unrelated
+        configuration changes. The block is cleared by update-status once they are gone.
         """
-        if _serves_legacy_address_pools(self.native_manifest):
+        self._stored.legacy_pools_blocked = False
+        release = self.native_manifest.current_release
+        if _serves_legacy_address_pools(self.native_manifest, release):
             return False
 
+        namespace = self.config["namespace"]
         try:
-            pools = list(self.client.list(self.AddressPool, namespace=self.config["namespace"]))
+            pools = list(self.client.list(self.AddressPool, namespace=namespace))
         except ApiError as e:
             if e.status.code == 404:
                 # The CRD is absent from the cluster, so there is nothing to migrate.
@@ -211,14 +249,30 @@ class MetallbCharm(ops.CharmBase):
             return False
 
         names = ", ".join(sorted(pool.metadata.name for pool in pools))
+        deployed = self._deployed_release()
+        if deployed and not _serves_legacy_address_pools(self.native_manifest, deployed):
+            logger.warning(
+                "AddressPool objects exist (%s), but the running release %s has not honoured "
+                "them either; not blocking %s",
+                names,
+                deployed,
+                release,
+            )
+            return False
+
         logger.error(
             "Release %s does not support the legacy AddressPool API; migrate %s first",
-            self.native_manifest.current_release,
+            release,
             names,
         )
+        self._stored.configured = False
+        self._stored.legacy_pools_blocked = True
         self.unit.status = BlockedStatus(
-            f"Migrate AddressPool to IPAddressPool before deploying "
-            f"{self.native_manifest.current_release}: {names}"
+            f"AddressPool objects ({names}) are not supported by {release}. "
+            f"List: kubectl get addresspools.metallb.io -n {namespace} -o yaml. "
+            "Recreate each as an IPAddressPool plus L2Advertisement, then delete it: "
+            f"kubectl delete addresspools.metallb.io <name> -n {namespace}. "
+            "This is re-checked automatically."
         )
         return True
 

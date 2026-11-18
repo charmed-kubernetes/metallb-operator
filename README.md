@@ -52,10 +52,43 @@ custom resources and record existing LoadBalancer IPs. Existing explicitly set
   its CRD is no longer deployed from v0.14.3 on. The charm itself only ever
   creates `IPAddressPool` and `L2Advertisement`, so its own pool is unaffected.
   Manually created `AddressPool` objects, however, would be left in place but
-  inert. The charm therefore refuses to apply a release which does not serve
-  `AddressPool` while such objects exist in its namespace, and goes into a
-  blocked state naming them. It never deletes them. Migrate them to
-  `IPAddressPool` plus `L2Advertisement` or `BGPAdvertisement`, then retry.
+  inert. The charm therefore refuses to move a cluster whose controller still
+  runs a release that serves `AddressPool` to one that does not while such
+  objects exist in its namespace, and goes into a blocked state naming them. It
+  never deletes them. Leftover objects do not block anything once the
+  controller already runs a release without the API (the charm never prunes the
+  old CRD), as they are inert at that point. To migrate, with `<ns>` being the
+  charm's `namespace` option:
+
+  ```
+  kubectl get addresspools.metallb.io -n <ns> -o yaml
+  # for each pool, create an equivalent IPAddressPool plus L2Advertisement
+  # (or BGPAdvertisement), reusing spec.addresses:
+  kubectl apply -f - <<EOF
+  apiVersion: metallb.io/v1beta1
+  kind: IPAddressPool
+  metadata: {name: <name>, namespace: <ns>}
+  spec: {addresses: [<addresses>]}
+  ---
+  apiVersion: metallb.io/v1beta1
+  kind: L2Advertisement
+  metadata: {name: <name>, namespace: <ns>}
+  spec: {ipAddressPools: [<name>]}
+  EOF
+  kubectl delete addresspools.metallb.io <name> -n <ns>
+  ```
+
+  The unit re-checks on every `update-status` hook, so it applies the release and
+  the configured pool by itself shortly after the last `AddressPool` object is
+  gone; there is no need to change any configuration.
+- `juju refresh` only applies the resources of the selected release and never
+  prunes. The old `Service/webhook-service`, `Secret/webhook-server-cert` and the
+  `addresspools.metallb.io` CRD (whose conversion webhook points at that now
+  orphaned Service) therefore stay in the cluster after moving to 0.14.3 or later
+  and are harmless; remove them manually once no `AddressPool` objects remain.
+- In v0.16 the speaker, which uses host networking, serves metrics on port 9120
+  and health probes on port 17472 of every node. Check for conflicts with other
+  host-network workloads, notably on MicroK8s with strict confinement.
 - `BGPPeer` v1beta1 is deprecated but still served, with v1beta2 as storage and
   a conversion webhook. Migrate manually managed peers to v1beta2; the charm
   itself does not create BGP peers. Keep the controller and its webhook

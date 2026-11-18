@@ -102,33 +102,100 @@ def test_refresh_rolls_out_schema_default(harness, lk_manifests_client):
     assert _applied_releases(lk_manifests_client) == {f"metallb-{new_default}"}
 
 
-@pytest.mark.parametrize("event", ["install", "config_changed"])
+def _api_error(code):
+    api_error = ApiError(response=mock.MagicMock())
+    api_error.status.code = code
+    api_error.status.message = "not found"
+    return api_error
+
+
+def _legacy_pool(name="legacy-pool"):
+    pool = mock.MagicMock()
+    pool.metadata.name = name
+    return pool
+
+
+def _set_deployed_release(lk_charm_client, release):
+    """Make the controller Deployment look as applied by the given release, or absent."""
+    if release is None:
+        lk_charm_client.get.side_effect = _api_error(404)
+        return
+    controller = mock.MagicMock()
+    controller.metadata.labels = {"juju.io/manifest-version": f"metallb-{release}"}
+    lk_charm_client.get.side_effect = None
+    lk_charm_client.get.return_value = controller
+
+
+@pytest.mark.parametrize("event", ["install", "upgrade_charm", "config_changed"])
 def test_legacy_address_pools_block_unsupported_release(
     harness, lk_manifests_client, lk_charm_client, event
 ):
     """Releases without the AddressPool API must not be applied while pools exist."""
-    pool = mock.MagicMock()
-    pool.metadata.name = "legacy-pool"
-    lk_charm_client.list.return_value = [pool]
+    lk_charm_client.list.return_value = [_legacy_pool()]
+    _set_deployed_release(lk_charm_client, "v0.13.10")
 
     harness.set_leader(True)
     harness.begin()
     getattr(harness.charm.on, event).emit()
 
-    assert harness.charm.model.unit.status == BlockedStatus(
-        "Migrate AddressPool to IPAddressPool before deploying v0.16.2: legacy-pool"
-    )
+    status = harness.charm.model.unit.status
+    assert isinstance(status, BlockedStatus)
+    assert "legacy-pool" in status.message
+    assert "kubectl get addresspools.metallb.io -n metallb-system -o yaml" in status.message
+    assert "kubectl delete addresspools.metallb.io <name> -n metallb-system" in status.message
     assert lk_manifests_client.apply.call_args_list == []
     assert lk_charm_client.delete.call_args_list == []
+
+
+def test_legacy_address_pools_unblock_on_update_status(
+    harness, lk_manifests_client, lk_charm_client
+):
+    """Once the user has migrated the objects, update-status applies the release."""
+    lk_charm_client.list.return_value = [_legacy_pool()]
+    _set_deployed_release(lk_charm_client, "v0.13.10")
+
+    harness.set_leader(True)
+    harness.begin()
+    harness.charm.on.upgrade_charm.emit()
+    assert isinstance(harness.charm.model.unit.status, BlockedStatus)
+
+    # still present: nothing applied, still blocked
+    harness.charm.on.update_status.emit()
+    assert isinstance(harness.charm.model.unit.status, BlockedStatus)
+    assert lk_manifests_client.apply.call_args_list == []
+
+    # the user migrated the objects
+    lk_charm_client.list.return_value = []
+    harness.charm.on.update_status.emit()
+    assert not isinstance(harness.charm.model.unit.status, BlockedStatus)
+    assert _applied_releases(lk_manifests_client) == {"metallb-v0.16.2"}
+    applied_kinds = {type(call.args[0]).__name__ for call in lk_charm_client.apply.call_args_list}
+    assert applied_kinds == {"IPAddressPool", "L2Advertisement"}
+    assert lk_charm_client.delete.call_args_list == []
+
+
+def test_no_address_pools_never_blocks(harness, lk_manifests_client, lk_charm_client):
+    """Users without AddressPool objects are not blocked and pay for no extra API calls."""
+    lk_charm_client.list.return_value = []
+
+    harness.set_leader(True)
+    harness.begin()
+    for event in (harness.charm.on.install, harness.charm.on.config_changed):
+        event.emit()
+        assert not isinstance(harness.charm.model.unit.status, BlockedStatus)
+    assert _applied_releases(lk_manifests_client) == {"metallb-v0.16.2"}
+
+    lk_charm_client.list.reset_mock()
+    harness.charm.on.update_status.emit()
+    assert not isinstance(harness.charm.model.unit.status, BlockedStatus)
+    assert lk_charm_client.list.call_args_list == []
 
 
 def test_legacy_address_pools_allowed_on_serving_release(
     harness, lk_manifests_client, lk_charm_client
 ):
     """A release which still serves AddressPool keeps working with existing pools."""
-    pool = mock.MagicMock()
-    pool.metadata.name = "legacy-pool"
-    lk_charm_client.list.return_value = [pool]
+    lk_charm_client.list.return_value = [_legacy_pool()]
 
     harness.update_config({"metallb-release": "v0.13.10"})
     harness.set_leader(True)
@@ -139,11 +206,29 @@ def test_legacy_address_pools_allowed_on_serving_release(
     assert lk_charm_client.delete.call_args_list == []
 
 
+@pytest.mark.parametrize("deployed", ["v0.14.9", "v0.15.3", "v0.16.2"])
+def test_legacy_address_pools_do_not_block_when_already_unsupported(
+    harness, lk_manifests_client, lk_charm_client, deployed
+):
+    """Leftover AddressPool objects are inert once the cluster runs a release without them.
+
+    The charm never prunes the legacy CRD, so objects created or left after the upgrade
+    must not block later config changes (e.g. iprange) on an otherwise healthy cluster.
+    """
+    lk_charm_client.list.return_value = [_legacy_pool()]
+    _set_deployed_release(lk_charm_client, deployed)
+
+    harness.set_leader(True)
+    harness.begin()
+    harness.charm.on.config_changed.emit()
+
+    assert not isinstance(harness.charm.model.unit.status, BlockedStatus)
+    assert _applied_releases(lk_manifests_client) == {"metallb-v0.16.2"}
+
+
 def test_missing_legacy_crd_does_not_block(harness, lk_manifests_client, lk_charm_client):
     """An absent AddressPool CRD means there is nothing to migrate."""
-    api_error = ApiError(response=mock.MagicMock())
-    api_error.status.code = 404
-    lk_charm_client.list.side_effect = api_error
+    lk_charm_client.list.side_effect = _api_error(404)
 
     harness.set_leader(True)
     harness.begin()
