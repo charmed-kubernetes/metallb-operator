@@ -48,10 +48,14 @@ before changing `metallb-release` or upgrading the charm. Back up the MetalLB
 custom resources and record existing LoadBalancer IPs. Existing explicitly set
 `metallb-release` values remain pinned; unset values follow the charm default.
 
-- The old `AddressPool` API is no longer deployed by newer bundles. Migrate
-  any manually created `AddressPool` resources to `IPAddressPool` plus
-  `L2Advertisement` or `BGPAdvertisement` before upgrading. The charm already
-  creates `IPAddressPool` and `L2Advertisement` and does not create `AddressPool`.
+- The old `AddressPool` API stopped allocating addresses in upstream v0.14.2 and
+  its CRD is no longer deployed from v0.14.3 on. The charm itself only ever
+  creates `IPAddressPool` and `L2Advertisement`, so its own pool is unaffected.
+  Manually created `AddressPool` objects, however, would be left in place but
+  inert. The charm therefore refuses to apply a release which does not serve
+  `AddressPool` while such objects exist in its namespace, and goes into a
+  blocked state naming them. It never deletes them. Migrate them to
+  `IPAddressPool` plus `L2Advertisement` or `BGPAdvertisement`, then retry.
 - `BGPPeer` v1beta1 is deprecated but still served, with v1beta2 as storage and
   a conversion webhook. Migrate manually managed peers to v1beta2; the charm
   itself does not create BGP peers. Keep the controller and its webhook

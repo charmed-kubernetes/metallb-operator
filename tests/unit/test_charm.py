@@ -66,6 +66,92 @@ def test_install_applies_manifest_objects(harness, lk_manifests_client, release)
         assert found
 
 
+def _applied_releases(lk_manifests_client):
+    """Collect the manifest-version labels of every applied manifest resource."""
+    return {
+        call.args[0].metadata.labels["juju.io/manifest-version"]
+        for call in lk_manifests_client.apply.call_args_list
+    }
+
+
+def test_refresh_rolls_out_schema_default(harness, lk_manifests_client):
+    """A charm refresh must re-apply the manifests at the new schema default.
+
+    The default release is defined by `config.yaml` and `upstream/metallb-native/version`.
+    Simulate an installation pinned to the previous default, then refresh with the
+    release option unset so that the schema default applies.
+    """
+    previous_default = "v0.13.10"
+    new_default = yaml.safe_load(Path("config.yaml").read_text())["options"]["metallb-release"][
+        "default"
+    ]
+    assert new_default == Path("upstream/metallb-native/version").read_text().strip()
+    assert new_default != previous_default
+
+    harness.update_config({"metallb-release": previous_default})
+    harness.set_leader(True)
+    harness.begin()
+    harness.charm.on.install.emit()
+    assert _applied_releases(lk_manifests_client) == {f"metallb-{previous_default}"}
+
+    # Refreshing the charm clears the explicitly pinned release, so the schema
+    # default must take effect and be rolled out.
+    lk_manifests_client.reset_mock()
+    harness.update_config(unset=["metallb-release"])
+    harness.charm.on.upgrade_charm.emit()
+    assert _applied_releases(lk_manifests_client) == {f"metallb-{new_default}"}
+
+
+@pytest.mark.parametrize("event", ["install", "config_changed"])
+def test_legacy_address_pools_block_unsupported_release(
+    harness, lk_manifests_client, lk_charm_client, event
+):
+    """Releases without the AddressPool API must not be applied while pools exist."""
+    pool = mock.MagicMock()
+    pool.metadata.name = "legacy-pool"
+    lk_charm_client.list.return_value = [pool]
+
+    harness.set_leader(True)
+    harness.begin()
+    getattr(harness.charm.on, event).emit()
+
+    assert harness.charm.model.unit.status == BlockedStatus(
+        "Migrate AddressPool to IPAddressPool before deploying v0.16.2: legacy-pool"
+    )
+    assert lk_manifests_client.apply.call_args_list == []
+    assert lk_charm_client.delete.call_args_list == []
+
+
+def test_legacy_address_pools_allowed_on_serving_release(
+    harness, lk_manifests_client, lk_charm_client
+):
+    """A release which still serves AddressPool keeps working with existing pools."""
+    pool = mock.MagicMock()
+    pool.metadata.name = "legacy-pool"
+    lk_charm_client.list.return_value = [pool]
+
+    harness.update_config({"metallb-release": "v0.13.10"})
+    harness.set_leader(True)
+    harness.begin()
+    harness.charm.on.install.emit()
+
+    assert _applied_releases(lk_manifests_client) == {"metallb-v0.13.10"}
+    assert lk_charm_client.delete.call_args_list == []
+
+
+def test_missing_legacy_crd_does_not_block(harness, lk_manifests_client, lk_charm_client):
+    """An absent AddressPool CRD means there is nothing to migrate."""
+    api_error = ApiError(response=mock.MagicMock())
+    api_error.status.code = 404
+    lk_charm_client.list.side_effect = api_error
+
+    harness.set_leader(True)
+    harness.begin()
+    harness.charm.on.install.emit()
+
+    assert _applied_releases(lk_manifests_client) == {"metallb-v0.16.2"}
+
+
 @pytest.mark.parametrize(
     "release", sorted(path.name for path in Path("upstream/metallb-native/manifests").iterdir())
 )

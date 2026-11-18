@@ -30,6 +30,19 @@ def _missing_resources(manifest: Manifests):
     return missing
 
 
+# Releases from v0.14.2 onwards neither ship nor honour the legacy AddressPool API;
+# IPs are allocated only through IPAddressPool resources.
+# https://github.com/metallb/metallb/pull/2252
+LEGACY_ADDRESS_POOL_CRD = "addresspools.metallb.io"
+
+
+def _serves_legacy_address_pools(manifest: Manifests) -> bool:
+    return any(
+        rsc.kind == "CustomResourceDefinition" and rsc.name == LEGACY_ADDRESS_POOL_CRD
+        for rsc in manifest.resources
+    )
+
+
 def _is_ip_address(str_to_test):
     try:
         ipaddress.ip_address(str_to_test)
@@ -119,6 +132,15 @@ class MetallbCharm(ops.CharmBase):
             plural="l2advertisements",
         )
 
+        # The legacy AddressPool API is only read to protect existing objects during
+        # an upgrade; the charm never creates or deletes them.
+        self.AddressPool = create_namespaced_resource(
+            group="metallb.io",
+            version="v1beta1",
+            kind="AddressPool",
+            plural="addresspools",
+        )
+
         self.framework.observe(self.on.install, self._install_or_upgrade)
         self.framework.observe(self.on.upgrade_charm, self._install_or_upgrade)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
@@ -166,9 +188,45 @@ class MetallbCharm(ops.CharmBase):
         self.unit.set_workload_version(self.native_collector.short_version)
         self.app.status = ActiveStatus(self.native_collector.long_version)
 
+    def _legacy_pools_block_release(self) -> bool:
+        """Refuse releases which no longer honour AddressPool objects still in the cluster.
+
+        MetalLB stopped allocating from the legacy AddressPool API in v0.14.2 and
+        stopped shipping its CRD in v0.14.3. Applying such a release leaves existing
+        AddressPool objects in place but inert, so services allocated from them would
+        silently lose their addresses. Block instead, and never delete user objects.
+        """
+        if _serves_legacy_address_pools(self.native_manifest):
+            return False
+
+        try:
+            pools = list(self.client.list(self.AddressPool, namespace=self.config["namespace"]))
+        except ApiError as e:
+            if e.status.code == 404:
+                # The CRD is absent from the cluster, so there is nothing to migrate.
+                return False
+            raise
+
+        if not pools:
+            return False
+
+        names = ", ".join(sorted(pool.metadata.name for pool in pools))
+        logger.error(
+            "Release %s does not support the legacy AddressPool API; migrate %s first",
+            self.native_manifest.current_release,
+            names,
+        )
+        self.unit.status = BlockedStatus(
+            f"Migrate AddressPool to IPAddressPool before deploying "
+            f"{self.native_manifest.current_release}: {names}"
+        )
+        return True
+
     def _install_or_upgrade(self, event):
         logger.info("Installing MetalLB native manifest resources ...")
         with _block_on_forbidden(self.unit):
+            if self._legacy_pools_block_release():
+                return
             self.native_manifest.apply_manifests()
             self.unit.status = WaitingStatus("Waiting for MetalLB resources to be configured")
             logger.info("MetalLB native manifest has been installed")
@@ -193,6 +251,8 @@ class MetallbCharm(ops.CharmBase):
 
         addresses = stripped.split(",")
         with _block_on_forbidden(self.unit):
+            if self._legacy_pools_block_release():
+                return
             self.unit.status = MaintenanceStatus("Updating Manifests")
             self.native_manifest.apply_manifests()
             self.unit.status = MaintenanceStatus("Updating Configuration")
