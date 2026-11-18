@@ -24,7 +24,7 @@ options:
     description: |
       Specify the version of metallb to deploy. The version must be available in the upstream/metallb-native/manifests
       directory of the charm source code in order to be deployed
-    default: "v0.13.10"
+    default: "v0.16.2"
 
   node-selector:
     type: string

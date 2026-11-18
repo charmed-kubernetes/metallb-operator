@@ -24,12 +24,49 @@ The `image-registry` config option sets the image registry used for any MetalLB 
 it, as the charm simply applies a manifest via the Kubernetes API. You will need to use a registry that contains 
 the speaker and controller images required by the upstream manifest. 
 
-The `metallb-release` config option controls what version of the manifest to deploy. Currently, this charm only supports
-deploying 1 manifest version, v0.13.10, but more are expected to be added in the future as the Metallb project 
-progresses
+The `metallb-release` config option controls which bundled manifest to deploy.
+The default is `v0.16.2`; `v0.13.10`, `v0.13.12`, `v0.14.9`, and `v0.15.3`
+are also bundled. For Kubernetes 1.36, use `v0.16.2`: upstream fixed
+[CRD ASN validation for Kubernetes 1.36](https://github.com/metallb/metallb/pull/3035)
+in 0.16.0 and corrected the `BGPPeer.spec.localASN` schema in 0.16.1.
+Older bundled versions do not include these fixes and are not CK 1.36 choices.
+
+All bundles are unmodified upstream
+[`metallb-native.yaml` release manifests](https://github.com/metallb/metallb/tree/v0.16.2/config/manifests).
+The charm continues to configure Layer 2 using `IPAddressPool` and
+`L2Advertisement` (`metallb.io/v1beta1`); it does not switch to the new Helm
+chart's FRR-K8s default or deploy FRR sidecars. Images, namespaces, and node
+selectors are still rewritten using the charm configuration.
 
 The `iprange` config option specifies IP ranges and CIDRs that load-balancer services will consume. 
 This should be a comma-separated list of hyphenated IP address ranges or CIDRs. 
+
+### Upgrading MetalLB
+
+Review the upstream [release notes](https://github.com/metallb/metallb/blob/v0.16.2/website/content/release-notes/_index.md)
+before changing `metallb-release` or upgrading the charm. Back up the MetalLB
+custom resources and record existing LoadBalancer IPs. Existing explicitly set
+`metallb-release` values remain pinned; unset values follow the charm default.
+
+- The old `AddressPool` API is no longer deployed by newer bundles. Migrate
+  any manually created `AddressPool` resources to `IPAddressPool` plus
+  `L2Advertisement` or `BGPAdvertisement` before upgrading. The charm already
+  creates `IPAddressPool` and `L2Advertisement` and does not create `AddressPool`.
+- `BGPPeer` v1beta1 is deprecated but still served, with v1beta2 as storage and
+  a conversion webhook. Migrate manually managed peers to v1beta2; the charm
+  itself does not create BGP peers. Keep the controller and its webhook
+  reachable while the CRDs and configuration are reconciled.
+- In 0.16.2 the memberlist encryption-key derivation changed. Old and new
+  speakers cannot exchange gossip during the rolling update, so allow a
+  maintenance window for transient L2 election changes and possible traffic
+  disruption. Check that every speaker has updated before testing failover.
+- Metrics in 0.16 use authenticated HTTPS on port 9120, rather than the old
+  HTTP metrics endpoint. Update any external monitoring configuration.
+- Removing or changing pools can reassign existing service IPs. Do not change
+  `iprange` as part of the upgrade unless that is intentional. Confirm
+  allocation, external connectivity, and failover after the rollout. A downgrade
+  across CRD/schema changes is not a tested rollback; retain a backup and test
+  recovery in an isolated environment first.
 
 ## Switching from the old pod-spec metallb-controller and metallb-speaker charms to the new charm
 

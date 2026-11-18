@@ -4,12 +4,14 @@
 # Learn more about testing at: https://juju.is/docs/sdk/testing
 
 import unittest.mock as mock
+from pathlib import Path
 
 import ops
 import ops.testing
 import pytest
 import yaml
 from lightkube.core.exceptions import ApiError
+from lightkube.generic_resource import get_generic_resource
 from ops import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.testing import Harness
 
@@ -33,9 +35,15 @@ def test_not_leader(harness):
     assert harness.charm.model.unit.status == BlockedStatus("MetalLB charm cannot be scaled > n1.")
 
 
-def test_install_applies_manifest_objects(harness, lk_manifests_client):
+@pytest.mark.parametrize(
+    "release",
+    [None] + sorted(path.name for path in Path("upstream/metallb-native/manifests").iterdir()),
+)
+def test_install_applies_manifest_objects(harness, lk_manifests_client, release):
     # Test that the install-handler applies the objects specified in the manifest
     lk_manifests_client.reset_mock()
+    if release is not None:
+        harness.update_config({"metallb-release": release})
     harness.set_leader(True)
     harness.begin()
     harness.charm.on.install.emit()
@@ -56,6 +64,73 @@ def test_install_applies_manifest_objects(harness, lk_manifests_client):
             if obj["metadata"]["name"] == call_obj["metadata"]["name"]:
                 found = True
         assert found
+
+
+@pytest.mark.parametrize(
+    "release", sorted(path.name for path in Path("upstream/metallb-native/manifests").iterdir())
+)
+def test_native_bundle_custom_configuration(
+    harness, lk_manifests_client, lk_charm_client, release
+):
+    namespace = "custom-metallb"
+    registry = "registry.example.test/mirror"
+    selector = {"kubernetes.io/os": "linux", "kubernetes.io/arch": "amd64"}
+    harness.update_config(
+        {
+            "metallb-release": release,
+            "namespace": namespace,
+            "image-registry": registry,
+            "node-selector": "kubernetes.io/os=linux kubernetes.io/arch=amd64",
+        }
+    )
+    harness.set_leader(True)
+    harness.begin()
+    harness.charm.on.config_changed.emit()
+
+    objects = [call.args[0].to_dict() for call in lk_manifests_client.apply.call_args_list]
+    services = {obj["metadata"]["name"] for obj in objects if obj["kind"] == "Service"}
+    crds = {}
+    for obj in objects:
+        if obj["metadata"].get("namespace"):
+            assert obj["metadata"]["namespace"] == namespace
+        if obj["kind"] == "Namespace":
+            assert obj["metadata"]["name"] == namespace
+        if obj["kind"] in ("RoleBinding", "ClusterRoleBinding"):
+            assert all(subject["namespace"] == namespace for subject in obj["subjects"])
+        if obj["kind"] == "CustomResourceDefinition":
+            crds[obj["spec"]["names"]["kind"]] = obj
+            conversion = obj["spec"].get("conversion", {})
+            if conversion.get("strategy") == "Webhook":
+                service = conversion["webhook"]["clientConfig"]["service"]
+                assert service["namespace"] == namespace
+                assert service["name"] in services
+        if obj["kind"] == "ValidatingWebhookConfiguration":
+            for webhook in obj["webhooks"]:
+                service = webhook["clientConfig"]["service"]
+                assert service["namespace"] == namespace
+                assert service["name"] in services
+                assert webhook["failurePolicy"] == "Fail"
+        if obj["kind"] in ("Deployment", "DaemonSet"):
+            pod = obj["spec"]["template"]["spec"]
+            assert pod["nodeSelector"] == selector
+            assert len(pod["containers"]) == 1  # Native bundle, not FRR sidecars.
+            container = pod["containers"][0]
+            assert container["image"].startswith(f"{registry}/metallb/")
+            assert all(
+                env.get("value", "native") == "native"
+                for env in container.get("env", [])
+                if env["name"] == "METALLB_BGP_TYPE"
+            )
+
+    for call in lk_charm_client.apply.call_args_list:
+        resource = call.args[0]
+        kind = type(resource).__name__
+        assert resource.metadata.namespace == namespace
+        assert any(
+            version["served"]
+            and get_generic_resource(f"metallb.io/{version['name']}", kind) is type(resource)
+            for version in crds[kind]["spec"]["versions"]
+        )
 
 
 def test_config_change_updates_ip_pool(harness, lk_charm_client):
